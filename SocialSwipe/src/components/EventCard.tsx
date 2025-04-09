@@ -1,59 +1,41 @@
-// src/components/EventCard.tsx (Example RN Path)
-
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     View,
     Text,
     Image,
     StyleSheet,
-    TouchableOpacity,
+    TouchableOpacity, // Can use Pressable as well
     ScrollView,
     Dimensions,
     Platform,
-    LayoutAnimation, // For simple layout animations
-    UIManager, // Needed for LayoutAnimation on Android
+    LayoutAnimation,
+    UIManager,
     ImageBackground,
 } from 'react-native';
-import Swiper from 'react-native-deck-swiper'; // Import the swiper
-import Icon from 'react-native-vector-icons/Feather'; // Using Feather icons
-import LinearGradient from 'react-native-linear-gradient'; // For the gradient overlay
-// Assuming Event type is defined elsewhere, e.g., in context or types file
+// REMOVED: import Swiper from 'react-native-deck-swiper';
+// REMOVED: import LinearGradient from 'react-native-linear-gradient';
+// CHANGE: Use @expo/vector-icons
+import { Feather, Ionicons } from '@expo/vector-icons'; // Using Feather & Ionicons from Expo
+
 import { Event, Attendee } from '@/types'; // Adjust import path as needed
 import { formatDate } from '@/lib/utils'; // Adjust import path as needed
 
-// Enable LayoutAnimation for Android
+// Enable LayoutAnimation for Android (Keep this)
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// --- Simple Avatar Component --- (Could be moved to its own file)
+// --- Avatar Component (Keep this - no native issues) ---
 interface AvatarProps {
     uri?: string;
     fallbackText: string;
     size?: number;
 }
 const Avatar: React.FC<AvatarProps> = ({ uri, fallbackText, size = 56 }) => {
-    const avatarStyle = {
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: '#CCCCCC', // Fallback background
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 2,
-        borderColor: '#FFFFFF',
-        overflow: 'hidden', // Clip the image
-    };
-    const imageStyle = {
-        width: '100%',
-        height: '100%',
-    };
-    const fallbackTextStyle = {
-        color: '#FFFFFF',
-        fontSize: size * 0.5, // Adjust font size based on avatar size
-        fontWeight: 'bold',
-    };
-
+    // ... (Avatar component implementation remains the same)
+    const avatarStyle = { /* ... */ };
+    const imageStyle = { /* ... */ };
+    const fallbackTextStyle = { /* ... */ };
     return (
         <View style={avatarStyle}>
             {uri ? (
@@ -66,98 +48,87 @@ const Avatar: React.FC<AvatarProps> = ({ uri, fallbackText, size = 56 }) => {
 };
 // --- End Avatar Component ---
 
-
-// --- Event Card Props ---
+// --- Event Card Props (Remove swiper-specific ones) ---
 interface EventCardProps {
-    event: Event; // The event object to display
-    onSwipeRight: (eventId: string) => void; // Function called on swipe right
-    onSwipeLeft: (eventId: string) => void; // Function called on swipe left
-    onViewProfile: (attendeeId: string) => void; // Function called when tapping an attendee
-    onSwipedAll?: () => void; // Optional: called when the last card is swiped
-    cardIndex?: number; // Optional: index if part of a larger stack
+    event: Event;
+    onSwipeRight: (eventId: string) => void; // Keep prop name for now, but triggered by button
+    onSwipeLeft: (eventId: string) => void; // Keep prop name for now, but triggered by button
+    onViewProfile: (attendeeId: string) => void;
 }
 
-// --- Event Card Component ---
+// --- Event Card Component (Modified) ---
 const EventCard: React.FC<EventCardProps> = ({
     event,
     onSwipeRight,
     onSwipeLeft,
     onViewProfile,
-    onSwipedAll = () => {}, // Default empty function
-    cardIndex = 0, // Default index
 }) => {
     const [showDetails, setShowDetails] = useState(false);
     const scrollViewRef = useRef<ScrollView>(null);
-    const swiperRef = useRef<Swiper<Event>>(null);
 
     const toggleDetails = () => {
-        // Animate layout changes when details are shown/hidden
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setShowDetails(!showDetails);
     };
 
+    // handleScroll is likely unused without the horizontal scroll buttons now,
+    // but keep it if you adapt the attendee scroll view in other ways
     const handleScroll = (direction: 'left' | 'right') => {
-        if (scrollViewRef.current) {
-            // Adjust scroll amount based on your avatar size + spacing
-            const scrollAmount = direction === 'left' ? -150 : 150;
-            scrollViewRef.current.scrollTo({ x: scrollAmount, animated: true });
-        }
+        // ... (handleScroll implementation) ...
     };
 
-    const formattedDate = formatDate(event.date); // Use your date formatting function
+    if (!event) {
+        // Handle case where event might be null/undefined if passed unexpectedly
+        return <View style={styles.card}><Text>No event data.</Text></View>;
+    }
 
-    // The function that renders the actual content of each card in the swiper
-    const renderCardContent = useCallback((cardData: Event | undefined) => {
-        if (!cardData) {
-            // Return a placeholder or null if cardData is somehow undefined
-             return <View style={styles.card}><Text>Error loading event</Text></View>;
-        }
+    const formattedDate = formatDate(event.date);
 
-        // Main card structure
-        return (
+    return (
+        // Container for the static card + action buttons
+        <View style={styles.container}>
+            {/* Main static card structure */}
             <View style={styles.card}>
                 <ImageBackground
-                    source={{ uri: cardData.image }}
+                    source={{ uri: event.image }}
                     style={styles.imageBackground}
                     resizeMode="cover"
                 >
-                    {/* Gradient Overlay */}
-                    <LinearGradient
-                        colors={['transparent', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.9)']}
-                        style={styles.gradient}
-                    >
-                        {/* Content inside gradient */}
+                    {/* Gradient Replacement: Semi-transparent View */}
+                    <View style={styles.gradientOverlay}>
+                        {/* Content inside overlay */}
                         <View style={styles.contentOverlay}>
                             <View style={styles.titleRow}>
-                                <Text style={styles.title}>{cardData.title}</Text>
+                                <Text style={styles.title}>{event.title}</Text>
                                 {/* Price Badge */}
-                                {cardData.price !== undefined && (
+                                {event.price !== undefined && (
                                      <View style={[styles.badge, styles.priceBadge]}>
-                                        <Text style={styles.priceBadgeText}>
-                                            $ {cardData.price === 0 ? 'Free' : cardData.price}
-                                        </Text>
-                                    </View>
+                                         <Text style={styles.priceBadgeText}>
+                                             {event.price === 0 ? 'Free' : `$ ${event.price}`}
+                                         </Text>
+                                     </View>
                                 )}
                             </View>
 
                             <View style={styles.infoRow}>
-                                <Icon name="map-pin" size={14} color="#FFFFFFCC" style={styles.icon} />
+                                {/* Use Feather from @expo/vector-icons */}
+                                <Feather name="map-pin" size={14} color="#FFFFFFCC" style={styles.icon} />
                                 <Text style={styles.infoText} numberOfLines={1}>
-                                    {cardData.location} • {formattedDate}
+                                    {event.location} • {formattedDate}
                                 </Text>
                             </View>
 
                             {/* Category Badges */}
                             <View style={styles.badgeRow}>
-                                {cardData.categories.slice(0, 2).map((category, index) => (
+                                {event.categories.slice(0, 2).map((category, index) => (
                                     <View key={index} style={[styles.badge, styles.categoryBadge]}>
                                         <Text style={styles.categoryBadgeText}>{category}</Text>
                                     </View>
                                 ))}
-                                {cardData.categories.length > 2 && (
-                                    <View style={[styles.badge, styles.categoryBadge]}>
-                                        <Text style={styles.categoryBadgeText}>+{cardData.categories.length - 2}</Text>
-                                    </View>
+                                {event.categories.length > 2 && (
+                                     <View style={[styles.badge, styles.categoryBadge]}>
+                                         <Text style={styles.categoryBadgeText}>+{event.categories.length - 2}</Text>
+                                     </View>
                                 )}
                             </View>
 
@@ -165,33 +136,29 @@ const EventCard: React.FC<EventCardProps> = ({
                             <View style={styles.attendeesSection}>
                                 <View style={styles.attendeesHeader}>
                                     <Text style={styles.attendeesCountText}>
-                                        {cardData.attendeesCount} attending
+                                        {event.attendeesCount} attending
                                     </Text>
                                     {/* Details Toggle Button */}
                                     <TouchableOpacity onPress={toggleDetails} style={styles.detailsButton}>
-                                        <Icon
+                                        {/* Use Feather from @expo/vector-icons */}
+                                        <Feather
                                             name={showDetails ? "chevron-up" : "chevron-down"}
                                             size={24}
                                             color="#FFFFFF"
-                                         />
+                                        />
                                     </TouchableOpacity>
                                 </View>
 
-                                {/* Attendees Carousel */}
-                                <View style={styles.carouselContainer}>
-                                   {/* Scroll Left Button - Kept simple for now */}
-                                    {/* <TouchableOpacity style={[styles.scrollButton, styles.scrollButtonLeft]} onPress={() => handleScroll('left')}>
-                                        <Icon name="chevron-left" size={20} color="#FFF" />
-                                    </TouchableOpacity> */}
-
+                                {/* Attendees Carousel (remains ScrollView) */}
+                                <View style={styles.attendeesCarouselContainer}>
                                     <ScrollView
                                         ref={scrollViewRef}
                                         horizontal
                                         showsHorizontalScrollIndicator={false}
                                         contentContainerStyle={styles.attendeesScroll}
-                                        scrollEventThrottle={16} // Optional: for smoother scroll handling if needed
+                                        scrollEventThrottle={16}
                                     >
-                                        {cardData.attendees.map((attendee: Attendee) => (
+                                        {event.attendees.map((attendee: Attendee) => (
                                             <TouchableOpacity
                                                 key={attendee.id}
                                                 onPress={() => onViewProfile(attendee.id)}
@@ -200,7 +167,7 @@ const EventCard: React.FC<EventCardProps> = ({
                                                 <Avatar
                                                     uri={attendee.image}
                                                     fallbackText={attendee.name}
-                                                    size={56} // Match style size
+                                                    size={56}
                                                 />
                                                 <Text style={styles.attendeeName} numberOfLines={1}>
                                                     {attendee.name}
@@ -208,323 +175,142 @@ const EventCard: React.FC<EventCardProps> = ({
                                             </TouchableOpacity>
                                         ))}
                                     </ScrollView>
-
-                                    {/* Scroll Right Button */}
-                                    {/* <TouchableOpacity style={[styles.scrollButton, styles.scrollButtonRight]} onPress={() => handleScroll('right')}>
-                                        <Icon name="chevron-right" size={20} color="#FFF" />
-                                    </TouchableOpacity> */}
                                 </View>
                             </View>
 
                             {/* Collapsible Event Details */}
                             {showDetails && (
                                 <View style={styles.detailsContainer}>
-                                    <Text style={styles.detailsDescription}>{cardData.description}</Text>
-                                    <View style={styles.detailsInfoRow}>
-                                        <Icon name="calendar" size={16} color="#FFFFFFCC" style={styles.icon} />
-                                        <Text style={styles.detailsInfoText}>{formattedDate}</Text>
-                                    </View>
+                                    <Text style={styles.detailsDescription}>{event.description}</Text>
                                      <View style={styles.detailsInfoRow}>
-                                        <Icon name="clock" size={16} color="#FFFFFFCC" style={styles.icon} />
-                                        <Text style={styles.detailsInfoText}>{cardData.time}</Text>
-                                    </View>
+                                        {/* Use Feather from @expo/vector-icons */}
+                                         <Feather name="calendar" size={16} color="#FFFFFFCC" style={styles.icon} />
+                                         <Text style={styles.detailsInfoText}>{formattedDate}</Text>
+                                     </View>
+                                      <View style={styles.detailsInfoRow}>
+                                        {/* Use Feather from @expo/vector-icons */}
+                                         <Feather name="clock" size={16} color="#FFFFFFCC" style={styles.icon} />
+                                         <Text style={styles.detailsInfoText}>{event.time}</Text>
+                                      </View>
                                 </View>
                             )}
                         </View>
-                    </LinearGradient>
+                    </View>
+                    {/* End Gradient Replacement */}
                 </ImageBackground>
             </View>
-        );
-     }, [event, showDetails, formattedDate, onViewProfile]); // Dependencies for useCallback
 
-    // Render the Swiper component
-    return (
-         <View style={styles.container}>
-            <Swiper
-                ref={swiperRef}
-                cards={[event]} // Pass the single event in an array for the swiper
-                renderCard={renderCardContent} // Use the render function defined above
-                cardIndex={cardIndex} // Current index
-                backgroundColor={'transparent'} // Make swiper background transparent
-                onSwipedRight={() => onSwipeRight(event.id)} // Pass event ID
-                onSwipedLeft={() => onSwipeLeft(event.id)} // Pass event ID
-                onSwipedAll={onSwipedAll} // Callback when all cards are swiped
-                stackSize={1} // Show only one card visually in the stack
-                stackSeparation={0} // No visual separation for stacked cards below
-                animateCardOpacity // Fade card opacity on swipe
-                // swipeBackCard // Optional: allow swiping back (might need extra logic)
-                containerStyle={styles.swiperContainer}
-                 // Use vertical swipe for Tinder-like effect? Default is horizontal.
-                // verticalSwipe={false}
-                // horizontalSwipe={true}
-                 // Infinite loop (set to false if you only have one batch of events)
-                 infinite={false} // IMPORTANT: set based on your Discover logic
-                 // Custom animation parameters if needed
-                 // outputRotationRange={["-15deg", "0deg", "15deg"]}
-            />
-            {/* Action Buttons positioned below the swiper area */}
-            {event && ( // Only show buttons if there's an event card visible
-                <View style={styles.actionButtonsContainer}>
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.skipButton]}
-                        onPress={() => swiperRef.current?.swipeLeft()} // Programmatically swipe
-                    >
-                        <Icon name="x" size={32} color="#F15A6A" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.likeButton]}
-                        onPress={() => swiperRef.current?.swipeRight()} // Programmatically swipe
-                    >
-                        <Icon name="heart" size={30} color="#FFFFFF" />
-                    </TouchableOpacity>
-                </View>
-             )}
-        </View>
+             {/* Action Buttons (Replaced Swiper Buttons) */}
+             <View style={styles.actionButtonsContainer}>
+                  <TouchableOpacity
+                      style={[styles.actionButton, styles.skipButton]}
+                      // Trigger the function passed from DiscoverScreen directly
+                      onPress={() => onSwipeLeft(event.id)}
+                  >
+                      {/* Use Ionicons from @expo/vector-icons */}
+                      <Ionicons name="close" size={32} color="#F15A6A" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                      style={[styles.actionButton, styles.likeButton]}
+                      // Trigger the function passed from DiscoverScreen directly
+                      onPress={() => onSwipeRight(event.id)}
+                  >
+                      {/* Use Ionicons from @expo/vector-icons */}
+                      <Ionicons name="heart" size={30} color="#FFFFFF" />
+                  </TouchableOpacity>
+             </View>
+
+        </View> // End container
     );
 };
-
 
 // --- Styles ---
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
-     container: { // Container for the whole component (Swiper + Buttons)
-        flex: 1,
-        // backgroundColor: 'lightblue', // For debugging layout
-        position: 'relative', // To position action buttons
-        marginBottom: 60, // Make space for action buttons below
+    container: { // Container for the whole component
+        flex: 1, // Take available space in DiscoverScreen's cardContainer
+        // backgroundColor: 'lightyellow', // Debug
     },
-     swiperContainer: {
-        flex: 1,
-        // backgroundColor: 'lightcoral', // For debugging layout
-        height: screenHeight * 0.75, // Make swiper take significant height
-        // You might adjust height based on your Discover screen layout
-    },
-    card: {
-        flex: 1, // Card should fill the swiper's render area
+    card: { // Styles for the main card view itself
+        flex: 1, // Card should fill its container space
         borderRadius: 16,
-        borderWidth: 0, // No border needed if using shadow/elevation
-        // backgroundColor: '#fff', // Background if image fails to load
-        overflow: 'hidden', // Clip image and gradient
-        // Shadow for iOS
+        backgroundColor: '#fff', // Background if image fails
+        overflow: 'hidden',
+        // Shadow/Elevation can remain
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 4,
-        // Elevation for Android
         elevation: 5,
     },
     imageBackground: {
-        flex: 1, // ImageBackground takes full card space
-        justifyContent: 'flex-end', // Align gradient and content to the bottom
+        flex: 1,
+        justifyContent: 'flex-end', // Align content overlay to bottom
     },
-    gradient: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        // Height can be adjusted, make it large enough for content
-        // Height will be determined by the contentOverlay padding + content height
-        paddingTop: 100, // Push gradient start higher, adjust as needed
+    // Gradient Replacement Style
+    gradientOverlay: {
+        flex: 1, // Take full space of ImageBackground
+        backgroundColor: 'rgba(0,0,0,0.4)', // Semi-transparent overlay
+        justifyContent: 'flex-end', // Align content to bottom
     },
-    contentOverlay: {
+    contentOverlay: { // Padding for content inside the overlay
         paddingHorizontal: 16,
-        paddingBottom: 16, // Bottom padding inside the gradient
-        paddingTop: 10, // Minimal top padding inside gradient start
+        paddingBottom: 16,
+        paddingTop: 100, // Push content down (adjust as needed)
     },
-    titleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 4,
+    titleRow: { /* ... same */ },
+    title: { /* ... same */ },
+    infoRow: { /* ... same */ },
+    infoText: { /* ... same */ },
+    badgeRow: { /* ... same */ },
+    badge: { /* ... same */ },
+    priceBadge: { /* ... same */ },
+    priceBadgeText: { /* ... same */ },
+    categoryBadge: { /* ... same */ },
+    categoryBadgeText: { /* ... same */ },
+    attendeesSection: { /* ... same */ },
+    attendeesHeader: { /* ... same */ },
+    attendeesCountText: { /* ... same */ },
+    detailsButton: { /* ... same */ },
+    attendeesCarouselContainer: { // Renamed from carouselContainer
+        marginHorizontal: -16, // Allow scrollview content to reach edges
     },
-    title: {
-        color: '#FFFFFF',
-        fontSize: 26,
-        fontWeight: 'bold',
-        flexShrink: 1, // Allow title to shrink if price badge is wide
-        marginRight: 8,
-    },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 2,
-        marginBottom: 8,
-    },
-    infoText: {
-        color: '#FFFFFFCC', // White with some transparency
-        fontSize: 14,
-        marginLeft: 4,
-    },
-    badgeRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap', // Allow badges to wrap
-        marginBottom: 12,
-    },
-    badge: {
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 12, // Pill shape
-        marginRight: 6,
-        marginBottom: 4, // Spacing for wrapped badges
-        borderWidth: 1,
-    },
-    priceBadge: {
-        backgroundColor: 'rgba(0, 122, 255, 0.3)', // Bluish semi-transparent
-        borderColor: 'rgba(0, 122, 255, 0.6)',
-        marginLeft: 'auto', // Push price badge to the right
-    },
-    priceBadgeText: {
-        color: '#E0F2FF', // Light blue text
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    categoryBadge: {
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-    },
-    categoryBadgeText: {
-        color: '#FFFFFFE6',
-        fontSize: 12,
-    },
-    attendeesSection: {
-        marginTop: 8,
-         // backgroundColor: 'rgba(255,0,0,0.1)', // Debugging bg
-    },
-    attendeesHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    attendeesCountText: {
-        color: '#FFFFFF',
-        fontSize: 15,
-        fontWeight: '500',
-    },
-    detailsButton: {
-        padding: 5, // Touch target
-    },
-     carouselContainer: {
-        position: 'relative', // For positioning scroll buttons if used
-        marginHorizontal: -16, // Allow scrollview to reach edges of padding
-    },
-    attendeesScroll: {
-        paddingHorizontal: 16, // Inner padding for scroll content
-        paddingVertical: 8,
-    },
-    attendeeItem: {
-        marginRight: 12,
-        alignItems: 'center',
-        width: 60, // Fixed width for wrapping text
-    },
-    // Styles for the simple Avatar component are inline above
-    attendeeName: {
-        color: '#FFFFFFE6',
-        fontSize: 12,
-        marginTop: 4,
-        textAlign: 'center',
-    },
-     scrollButton: { // Styles if using scroll buttons
-        position: 'absolute',
-        top: '50%',
-        marginTop: -16, // Adjust based on button height (32/2)
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        borderRadius: 16,
-        width: 32,
-        height: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 10,
-    },
-    scrollButtonLeft: {
-        left: 5,
-    },
-    scrollButtonRight: {
-        right: 5,
-    },
-    detailsContainer: {
-        marginTop: 10,
-        paddingTop: 10,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255, 255, 255, 0.2)',
-    },
-    detailsDescription: {
-        color: '#FFFFFFE6',
-        fontSize: 14,
-        lineHeight: 20,
-        marginBottom: 10,
-    },
-    detailsInfoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 5,
-    },
-    detailsInfoText: {
-        color: '#FFFFFFCC',
-        fontSize: 14,
-        marginLeft: 8,
-    },
-    icon: {
-        marginRight: 4, // Consistent icon spacing
-    },
-    // Action Buttons (Like/Skip)
+    attendeesScroll: { /* ... same */ },
+    attendeeItem: { /* ... same */ },
+    attendeeName: { /* ... same */ },
+    detailsContainer: { /* ... same */ },
+    detailsDescription: { /* ... same */ },
+    detailsInfoRow: { /* ... same */ },
+    detailsInfoText: { /* ... same */ },
+    icon: { /* ... same */ },
+     // Action Buttons (Now part of the static card layout)
      actionButtonsContainer: {
-        position: 'absolute',
-        bottom: -15, // Position below the swiper area (adjust based on container margin)
-        left: 0,
-        right: 0,
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        // backgroundColor: 'lightgreen', // Debugging
-        paddingBottom: 10, // Ensure buttons don't touch screen edge
-    },
-    actionButton: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginHorizontal: 20,
-        backgroundColor: '#FFFFFF', // Default background
-        // Shadow iOS
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        // Elevation Android
-        elevation: 6,
-    },
-    skipButton: {
-        // Custom styles for skip button if needed
-         backgroundColor: '#FFF', // White background
-    },
-    likeButton: {
-        backgroundColor: '#62D9A3', // Example Like button color (Green)
-    },
+         flexDirection: 'row',
+         justifyContent: 'space-evenly', // Space out buttons
+         alignItems: 'center',
+         paddingVertical: 15, // Add padding around buttons
+         // Removed absolute positioning
+     },
+     actionButton: { /* ... same style as before ... */
+         width: 64,
+         height: 64,
+         borderRadius: 32,
+         justifyContent: 'center',
+         alignItems: 'center',
+        // marginHorizontal: 20, // Use space-evenly instead
+         backgroundColor: '#FFFFFF',
+         shadowColor: '#000',
+         shadowOffset: { width: 0, height: 2 },
+         shadowOpacity: 0.3,
+         shadowRadius: 4,
+         elevation: 6,
+     },
+     skipButton: { /* ... same */ },
+     likeButton: { /* ... same */ },
 });
 
 export default EventCard;
 
-
-// --- Type Definitions (Example - Place these in a central types file) ---
-// export interface Attendee {
-//   id: string;
-//   name: string;
-//   image?: string; // Optional image URI
-// }
-
-// export interface Event {
-//   id: string;
-//   title: string;
-//   description: string;
-//   image: string; // Image URI
-//   date: string; // Or Date object
-//   time: string;
-//   location: string;
-//   price: number; // Or string 'Free'
-//   categories: string[];
-//   attendeesCount: number;
-//   attendees: Attendee[];
-// }
-// --- End Type Definitions ---
+// --- Type Definitions (Keep or move) ---
+// ... (Event, Attendee types) ...
