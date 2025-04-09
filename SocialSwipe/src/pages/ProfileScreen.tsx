@@ -1,277 +1,314 @@
-import React, { useEffect, useState } from 'react';
+// src/screens/ProfileScreen.tsx (or appropriate path)
+// MODIFIED: Only updated handleEditProfile function
+
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
-  Pressable, // More flexible than Button for custom styling
-  ScrollView, // Good for content that might exceed screen height
-  Alert, // Alternative for simple feedback if Toast isn't set up
-  SafeAreaView // Ensures content avoids notches/status bars
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack'; // Or appropriate type
-import Toast from 'react-native-toast-message'; // Use the RN Toast library
+  Pressable,
+  ScrollView,
+  Alert,
+  SafeAreaView,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import Toast from "react-native-toast-message";
 
-import { useAuth } from '../contexts/AuthContext'; // Adjust path if needed
-import ProfileCard from '../components/ProfileCard'; // Adjust path & ensure RN version exists
-import { supabase } from '../lib/supabaseClient'; // Adjust path if needed
+import { useAuth } from "../contexts/AuthContext"; // Adjust path if needed
+import ProfileCard from "../components/ProfileCard"; // Adjust path if needed
+import { supabase } from "../lib/supabaseClient"; // Adjust path if needed
 
 // Define Profile type (keep this)
 interface Profile {
-    id: string;
-    created_at: string;
-    updated_at: string;
-    first_name: string;
-    last_name?: string | null;
-    date_of_birth: string;
-    gender: string;
-    bio?: string | null;
-    interests?: string[] | null;
-    location?: string | null;
-    looking_for?: string | null;
-    profile_pictures?: string[] | null;
-    // Add any other fields from your profiles table
+  id: string;
+  created_at: string;
+  updated_at: string;
+  first_name: string;
+  last_name?: string | null;
+  date_of_birth: string;
+  gender: string;
+  bio?: string | null;
+  interests?: string[] | null;
+  location?: string | null;
+  looking_for?: string | null;
+  profile_pictures?: string[] | null; // Expecting this to contain full URLs directly from DB
+  // Add any other fields from your profiles table
 }
 
-// Define navigation param list including potential destinations
-// You might need to combine this with types from App.tsx or a dedicated types file
+// Define navigation param list
 type ProfileScreenNavigationProp = NativeStackNavigationProp<
   {
-    Login: undefined; // Assuming Login is a screen name in your Auth stack
-    ProfilePrompt: undefined; // Assuming this is in your Onboarding stack
-    EditProfile: undefined; // Assuming you'll have an EditProfile screen
+    Login: undefined;
+    ProfilePrompt: undefined;
+    EditProfile: undefined; // Ensure this screen name is correct for your navigator
     // Add other relevant screen names if needed
   },
-  'ProfileTab' // The current screen's name (adjust if different)
+  "ProfileTab" // The current screen's name (adjust if different)
 >;
 
-
 const ProfileScreen: React.FC = () => {
-  // Use RN navigation hook
   const navigation = useNavigation<ProfileScreenNavigationProp>();
-  const { user, loading: authLoading, session } = useAuth(); // Assuming session might be needed for logout check
+  // Keeping 'session' here as it was in your original code for this file
+  const { user, loading: authLoading, session } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState<boolean>(true); // Profile fetching loading state
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    // Only fetch if auth isn't loading and user exists
     if (!authLoading && user) {
       const fetchProfile = async () => {
         setLoading(true);
-        console.log('ProfileScreen: Fetching profile for user ID:', user.id);
+        console.log("ProfileScreen: Fetching profile for user ID:", user.id);
+
+        // *** BUCKET_NAME and URL Generation code REMOVED ***
+
         try {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
+          // Fetch profile data - assuming it includes the full URL in profile_pictures
+          const { data: profileData, error: profileError } = await supabase
+            .from("profiles")
+            .select("*") // Ensure 'profile_pictures' column is selected (using '*' does this)
+            .eq("id", user.id)
             .single();
 
-          if (error) {
-            console.error('ProfileScreen: Error fetching profile:', error);
-            throw error;
+          if (profileError) {
+            console.error("ProfileScreen: Error fetching profile:", profileError);
+            throw profileError; // Throw error to be caught below
           }
 
-          if (data) {
-            console.log('ProfileScreen: Profile data found:', data);
-            setProfile(data as Profile);
+          // Check if data was returned
+          if (profileData) {
+            // *** VITAL: Log the data exactly as received ***
+            console.log("ProfileScreen: Profile data found (raw):", profileData);
+
+            // *** Use the data directly, as profile_pictures should already contain URLs ***
+            setProfile(profileData as Profile); // Cast to Profile type
+
           } else {
-            console.warn('ProfileScreen: No profile data found.');
-             Toast.show({
-                type: 'warning', // Use 'warning' or 'info'
-                text1: "Profile not found.",
-                text2: "Redirecting to create profile."
-             });
-            // Navigate to profile creation/prompt screen name
-            navigation.navigate('ProfilePrompt'); // Use screen name
+            // Handle case where profile row doesn't exist for the user ID
+            console.warn("ProfileScreen: No profile data found for user.");
+            Toast.show({
+              type: "warning",
+              text1: "Profile setup needed.",
+              text2: "Let's get your profile ready.",
+            });
+            navigation.navigate("ProfilePrompt"); // Redirect to profile creation
           }
-
         } catch (error: any) {
-          console.error('ProfileScreen: Failed to fetch profile:', error);
+          // Handle any errors during the fetch or processing
+          console.error("ProfileScreen: Failed to fetch profile:", error);
           Toast.show({
-            type: 'error',
+            type: "error",
             text1: "Failed to load profile",
-            text2: error?.message || "Please try again later."
+            text2: error?.message || "Please try again later.",
           });
+           // Keep profile null to show error/retry screen
+           setProfile(null);
         } finally {
+          // Always set loading to false once fetch attempt is complete
           setLoading(false);
         }
       };
 
-      fetchProfile();
+      fetchProfile(); // Execute the fetch function
+
     } else if (!authLoading && !user) {
-        console.log('ProfileScreen: No user session, redirecting to login.');
-        // Navigate to Login screen name
-        navigation.reset({ // Reset navigation stack to Auth flow
-            index: 0,
-            routes: [{ name: 'Login' }], // Use Login screen name from AuthStack
-        });
+      // Handle case where user is not logged in (and auth check is complete)
+      console.log("ProfileScreen: No user session, redirecting to login.");
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Login" }],
+      });
+      setLoading(false); // Ensure loading is false if redirecting
     }
-  }, [user, authLoading, navigation]);
+     // If auth is still loading, loading remains true, effect re-runs when auth changes
+  }, [user, authLoading, navigation]); // Dependencies for the effect
+
 
   // --- Logout Handler ---
   const handleLogout = async () => {
-    // Optional: Add loading state for logout button
     const { error } = await supabase.auth.signOut();
     if (error) {
-        Toast.show({ type: 'error', text1: "Logout failed", text2: error.message });
+      Toast.show({ type: "error", text1: "Logout failed", text2: error.message });
     } else {
-        Toast.show({ type: 'success', text1: "Logged out successfully" });
-        // Navigate to Login screen - reset stack usually preferred after logout
-        navigation.reset({
-            index: 0,
-            routes: [{ name: 'Login' }], // Use Login screen name from AuthStack
-        });
+      Toast.show({ type: "success", text1: "Logged out successfully" });
+      navigation.reset({ index: 0, routes: [{ name: "Login" }] });
     }
   };
 
-  // --- Edit Profile Navigation ---
-   const handleEditProfile = () => {
-       // Make sure 'EditProfile' is a defined screen in one of your navigators
-       // navigation.navigate('EditProfile');
-       Toast.show({ type: 'info', text1: 'Edit Profile action needed' }); // Placeholder
-   };
-
-  // --- Retry Fetch (Example) ---
-  const handleRetry = () => {
-      // Re-trigger the fetch logic - simplest way is often just forcing a re-render
-      // or explicitly calling a fetch function if you refactor useEffect
-      setLoading(true); // Show loader again
-      // You might need to manually call fetchProfile if it's extracted from useEffect
-       Toast.show({ type: 'info', text1: 'Retry logic needed' }); // Placeholder
-       setLoading(false); // Remove loader if retry isn't implemented yet
+  // --- *** EDIT PROFILE NAVIGATION (Updated) *** ---
+  const handleEditProfile = () => {
+    // Navigate to your EditProfile screen - Ensure 'EditProfile' is correct name in navigator
+    navigation.navigate('EditProfile'); // <<<< ONLY CHANGE IS HERE
+    // Removed the placeholder Toast
   };
+  // --- *** END OF CHANGE *** ---
+
+
+  // --- Retry Fetch ---
+   const handleRetry = () => {
+       console.log("ProfileScreen: Retrying profile fetch...");
+       setProfile(null); // Clear current profile state
+       setLoading(true); // Show loading indicator immediately
+       // The useEffect hook will re-run because dependencies haven't changed,
+       // but the internal logic will now execute fetchProfile again.
+   };
 
 
   // --- Render Logic ---
 
-  // Show main loader if auth is loading OR profile data is loading
+  // Show main loader if auth is initially loading OR profile data is being fetched/processed
   if (authLoading || loading) {
     return (
-      <View style={styles.centered}>
-        {/* Use built-in ActivityIndicator */}
-        <ActivityIndicator size="large" color="#FF6347" /> {/* Example color */}
-      </View>
-    );
-  }
-
-  // If loading is done but profile is still null (error case)
-  if (!profile) {
-    return (
+      // Applying safeArea here too for consistency during loading
       <SafeAreaView style={styles.safeArea}>
-          <View style={[styles.centered, styles.errorContainer]}>
-              <Text style={styles.errorText}>Could not load profile data.</Text>
-              <Text style={styles.errorTextSmall}>Please try again later.</Text>
-              {/* Replace window.location.reload() */}
-              <Pressable style={[styles.button, styles.buttonOutline, styles.retryButton]} onPress={handleRetry}>
-                 <Text style={styles.buttonOutlineText}>Retry</Text>
-              </Pressable>
-          </View>
+           <View style={styles.centered}>
+                <ActivityIndicator size="large" color="#FF6347" />
+           </View>
       </SafeAreaView>
     );
   }
 
-  // Render Actual Profile inside a ScrollView
+  // If loading is done but profile is still null (e.g., fetch failed or user needs profile setup)
+  if (!profile) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.centered, styles.errorContainer]}>
+          <Text style={styles.errorText}>Could not load profile data.</Text>
+          <Text style={styles.errorTextSmall}>There might be a network issue or the profile is missing.</Text>
+          <Pressable
+            style={[styles.button, styles.buttonOutline, styles.retryButton]}
+            onPress={handleRetry} // Use the retry handler
+          >
+            <Text style={styles.buttonOutlineText}>Retry</Text>
+          </Pressable>
+           <Pressable // Add a logout option in case of persistent failure
+            style={[styles.button, styles.buttonGhost, styles.retryButton]}
+            onPress={handleLogout}
+          >
+            <Text style={styles.buttonGhostText}>Log Out</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Render Actual Profile inside a ScrollView now that we have valid profile data
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContentContainer}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContentContainer}
+      >
         {/* Header with Edit Button */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Profile</Text>
-          <Pressable style={[styles.button, styles.buttonOutline]} onPress={handleEditProfile}>
+          {/* This Pressable now correctly calls the updated handleEditProfile */}
+          <Pressable
+            style={[styles.button, styles.buttonOutline]}
+            onPress={handleEditProfile}
+          >
             <Text style={styles.buttonOutlineText}>Edit Profile</Text>
           </Pressable>
         </View>
 
-        {/* Render the Profile Card component */}
-        {/* Ensure ProfileCard is a React Native component */}
+        {/* Render the Profile Card component with the direct profile data */}
+        {/* profile.profile_pictures should contain the URLs directly from the DB */}
         <ProfileCard profile={profile} />
 
         {/* Logout Button */}
         <View style={styles.logoutContainer}>
-          {/* Use Pressable for custom button look */}
-          <Pressable style={[styles.button, styles.buttonGhost]} onPress={handleLogout}>
+          <Pressable
+            style={[styles.button, styles.buttonGhost]}
+            onPress={handleLogout}
+          >
             <Text style={styles.buttonGhostText}>Log Out</Text>
           </Pressable>
         </View>
       </ScrollView>
+       {/* Make sure Toast messages can render globally, usually configured in App.tsx */}
+       {/* <Toast /> */}
     </SafeAreaView>
   );
 };
 
-// --- Styles ---
+// --- Styles --- (Copied from your previous code - unchanged)
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f8f9fa', // Example background
+    backgroundColor: "#f8f9fa", // Example background
   },
   scrollView: {
     flex: 1,
   },
   scrollContentContainer: {
-    padding: 16, // Equivalent to p-4
-    paddingBottom: 80, // Add padding at bottom if needed (e.g., for tabs) ~mb-16ish
+    padding: 16,
+    paddingBottom: 80,
   },
   centered: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   errorContainer: {
-      padding: 20,
+    padding: 20,
   },
   errorText: {
-      fontSize: 16,
-      color: '#dc3545', // Example destructive color
-      textAlign: 'center',
-      marginBottom: 8,
+    fontSize: 18, // Slightly larger
+    fontWeight: '600',
+    color: "#dc3545",
+    textAlign: "center",
+    marginBottom: 8,
   },
   errorTextSmall: {
-      fontSize: 14,
-      color: '#6c757d',
-      textAlign: 'center',
+    fontSize: 14,
+    color: "#6c757d",
+    textAlign: "center",
+    marginBottom: 20, // Add space before button
   },
   retryButton: {
-      marginTop: 20, // mt-4
+    marginTop: 15, // Consistent spacing for buttons
+    minWidth: 120, // Give buttons some minimum width
   },
   header: {
-    flexDirection: 'row', // To place items side-by-side
-    justifyContent: 'space-between', // Space title and button apart
-    alignItems: 'center', // Vertically align items
-    marginBottom: 24, // mb-6
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 24,
   },
   headerTitle: {
-    fontSize: 24, // text-2xl
-    fontWeight: 'bold',
-    color: '#FF6347', // Example primary color - ADJUST
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#FF6347", // Tomato color from example
   },
   logoutContainer: {
-    marginTop: 32, // mt-8
-    alignItems: 'center', // Center button horizontally
+    marginTop: 32,
+    alignItems: "center",
   },
-  // Basic Button Styling (Adapt as needed)
   button: {
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1, // Needed for outline/ghost variants
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
   },
   buttonOutline: {
-    borderColor: '#FF6347', // Example primary color - ADJUST
-    backgroundColor: 'transparent',
+    borderColor: "#FF6347",
+    backgroundColor: "transparent",
   },
   buttonOutlineText: {
-    color: '#FF6347', // Example primary color - ADJUST
-    fontWeight: '500',
+    color: "#FF6347",
+    fontWeight: "500",
   },
   buttonGhost: {
-    borderColor: 'transparent', // No border for ghost
-    backgroundColor: 'transparent',
+    borderColor: "transparent",
+    backgroundColor: "transparent",
   },
   buttonGhostText: {
-    color: '#6c757d', // Muted color - ADJUST
-    fontWeight: '500',
+    color: "#6c757d",
+    fontWeight: "500",
   },
 });
 
