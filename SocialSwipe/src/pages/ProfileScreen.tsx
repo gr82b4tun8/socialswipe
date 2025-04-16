@@ -1,7 +1,6 @@
-// src/screens/ProfileScreen.tsx (or appropriate path)
-// MODIFIED: Only updated handleEditProfile function
+// src/pages/ProfileScreen.tsx (MODIFIED)
 
-import React, { useEffect, useState } from "react";
+import React from "react"; // Removed useEffect, useState
 import {
   View,
   Text,
@@ -9,192 +8,155 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
-  Alert,
+  Alert, // Keep for potential use
   SafeAreaView,
+  Button, // Import Button for creation prompts
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import Toast from "react-native-toast-message";
+import Toast from "react-native-toast-message"; // Keep for logout/edit feedback
 
-import { useAuth } from "../contexts/AuthContext"; // Adjust path if needed
+import { useAuth } from "../contexts/AuthContext"; // Use profile/loading from context
 import ProfileCard from "../components/ProfileCard"; // Adjust path if needed
 import { supabase } from "../lib/supabaseClient"; // Adjust path if needed
 
-// Define Profile type (keep this)
+// Import the RootStackParamList from App.tsx or your types file
+// Ensure this path is correct relative to your ProfileScreen.tsx file
+import { RootStackParamList } from '../../App';
+
+// Define Profile type (ensure this matches context and DB)
 interface Profile {
   id: string;
   created_at: string;
   updated_at: string;
-  first_name: string;
+  profile_type: 'personal' | 'business' | null; // Make sure this is here
+  first_name?: string | null; // Use optional if they can be null
   last_name?: string | null;
-  date_of_birth: string;
-  gender: string;
+  date_of_birth?: string | null;
+  gender?: string | null;
   bio?: string | null;
   interests?: string[] | null;
   location?: string | null;
   looking_for?: string | null;
-  profile_pictures?: string[] | null; // Expecting this to contain full URLs directly from DB
+  profile_pictures?: string[] | null;
+  business_name?: string | null; // Add business fields if applicable
   // Add any other fields from your profiles table
 }
 
-// Define navigation param list
+// Update navigation prop type to use RootStackParamList
 type ProfileScreenNavigationProp = NativeStackNavigationProp<
-  {
-    Login: undefined;
-    ProfilePrompt: undefined;
-    EditProfile: undefined; // Ensure this screen name is correct for your navigator
-    // Add other relevant screen names if needed
-  },
-  "ProfileTab" // The current screen's name (adjust if different)
+  RootStackParamList, // Use the correct param list
+  'Main' // This screen lives within 'Main', but can navigate to RootStack screens
 >;
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<ProfileScreenNavigationProp>();
-  // Keeping 'session' here as it was in your original code for this file
-  const { user, loading: authLoading, session } = useAuth();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  // Get session, user, profile, and loading states directly from context
+  const {
+      session,
+      user, // Keep user if needed for email display etc.
+      profile, // Use profile from context
+      loadingAuth, // Might still need this initial check
+      loadingProfile // Use loading state from context
+  } = useAuth();
 
-  useEffect(() => {
-    // Only fetch if auth isn't loading and user exists
-    if (!authLoading && user) {
-      const fetchProfile = async () => {
-        setLoading(true);
-        console.log("ProfileScreen: Fetching profile for user ID:", user.id);
-
-        // *** BUCKET_NAME and URL Generation code REMOVED ***
-
-        try {
-          // Fetch profile data - assuming it includes the full URL in profile_pictures
-          const { data: profileData, error: profileError } = await supabase
-            .from("profiles")
-            .select("*") // Ensure 'profile_pictures' column is selected (using '*' does this)
-            .eq("id", user.id)
-            .single();
-
-          if (profileError) {
-            console.error("ProfileScreen: Error fetching profile:", profileError);
-            throw profileError; // Throw error to be caught below
-          }
-
-          // Check if data was returned
-          if (profileData) {
-            // *** VITAL: Log the data exactly as received ***
-            console.log("ProfileScreen: Profile data found (raw):", profileData);
-
-            // *** Use the data directly, as profile_pictures should already contain URLs ***
-            setProfile(profileData as Profile); // Cast to Profile type
-
-          } else {
-            // Handle case where profile row doesn't exist for the user ID
-            console.warn("ProfileScreen: No profile data found for user.");
-            Toast.show({
-              type: "warning",
-              text1: "Profile setup needed.",
-              text2: "Let's get your profile ready.",
-            });
-            navigation.navigate("ProfilePrompt"); // Redirect to profile creation
-          }
-        } catch (error: any) {
-          // Handle any errors during the fetch or processing
-          console.error("ProfileScreen: Failed to fetch profile:", error);
-          Toast.show({
-            type: "error",
-            text1: "Failed to load profile",
-            text2: error?.message || "Please try again later.",
-          });
-           // Keep profile null to show error/retry screen
-           setProfile(null);
-        } finally {
-          // Always set loading to false once fetch attempt is complete
-          setLoading(false);
-        }
-      };
-
-      fetchProfile(); // Execute the fetch function
-
-    } else if (!authLoading && !user) {
-      // Handle case where user is not logged in (and auth check is complete)
-      console.log("ProfileScreen: No user session, redirecting to login.");
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Login" }],
-      });
-      setLoading(false); // Ensure loading is false if redirecting
-    }
-     // If auth is still loading, loading remains true, effect re-runs when auth changes
-  }, [user, authLoading, navigation]); // Dependencies for the effect
+  // REMOVED: Local useState for profile and loading
+  // REMOVED: useEffect fetching profile data (handled by AuthContext now)
 
 
   // --- Logout Handler ---
   const handleLogout = async () => {
+    // Show loading state?
     const { error } = await supabase.auth.signOut();
     if (error) {
       Toast.show({ type: "error", text1: "Logout failed", text2: error.message });
     } else {
       Toast.show({ type: "success", text1: "Logged out successfully" });
-      navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+      // AppContent will handle redirecting to AuthStack automatically
+      // No need for navigation.reset here if AuthContext handles state change correctly
     }
   };
 
-  // --- *** EDIT PROFILE NAVIGATION (Updated) *** ---
+  // --- Edit Profile Navigation ---
   const handleEditProfile = () => {
-    // Navigate to your EditProfile screen - Ensure 'EditProfile' is correct name in navigator
-    navigation.navigate('EditProfile'); // <<<< ONLY CHANGE IS HERE
-    // Removed the placeholder Toast
+    // Navigate to EditProfile screen (ensure 'EditProfile' is in RootStackParamList)
+    if (profile) { // Only allow editing if profile exists
+        navigation.navigate('EditProfile');
+    } else {
+        Toast.show({ type: 'info', text1: 'Create a profile first!' });
+    }
   };
-  // --- *** END OF CHANGE *** ---
 
-
-  // --- Retry Fetch ---
-   const handleRetry = () => {
-       console.log("ProfileScreen: Retrying profile fetch...");
-       setProfile(null); // Clear current profile state
-       setLoading(true); // Show loading indicator immediately
-       // The useEffect hook will re-run because dependencies haven't changed,
-       // but the internal logic will now execute fetchProfile again.
-   };
-
+  // REMOVED: handleRetry (no longer fetching locally)
 
   // --- Render Logic ---
 
-  // Show main loader if auth is initially loading OR profile data is being fetched/processed
-  if (authLoading || loading) {
+  // Show loader if either initial auth check is happening OR profile is loading
+  // Note: AppContent usually handles the loadingAuth part before rendering this screen,
+  // but checking loadingProfile is essential here. Checking authLoading is belt-and-suspenders.
+  if (loadingAuth || loadingProfile) {
     return (
-      // Applying safeArea here too for consistency during loading
       <SafeAreaView style={styles.safeArea}>
-           <View style={styles.centered}>
-                <ActivityIndicator size="large" color="#FF6347" />
-           </View>
+          <View style={styles.centered}>
+              <ActivityIndicator size="large" color="#FF6347" />
+              <Text>Loading Profile...</Text>
+          </View>
       </SafeAreaView>
     );
   }
 
-  // If loading is done but profile is still null (e.g., fetch failed or user needs profile setup)
+  // If loading is done, but we still don't have a profile object from context
   if (!profile) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={[styles.centered, styles.errorContainer]}>
-          <Text style={styles.errorText}>Could not load profile data.</Text>
-          <Text style={styles.errorTextSmall}>There might be a network issue or the profile is missing.</Text>
-          <Pressable
-            style={[styles.button, styles.buttonOutline, styles.retryButton]}
-            onPress={handleRetry} // Use the retry handler
-          >
-            <Text style={styles.buttonOutlineText}>Retry</Text>
-          </Pressable>
-           <Pressable // Add a logout option in case of persistent failure
-            style={[styles.button, styles.buttonGhost, styles.retryButton]}
-            onPress={handleLogout}
-          >
-            <Text style={styles.buttonGhostText}>Log Out</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
+      // Determine potential account type hint from user metadata if available
+      const metaAccountType = session?.user?.user_metadata?.profile_type;
+
+      return (
+        <SafeAreaView style={styles.safeArea}>
+            <View style={styles.centered}>
+                <Text style={styles.infoText}>You haven't created a profile yet.</Text>
+                <View style={styles.buttonContainer}>
+                    {/* Show "Create Personal" unless metadata explicitly says business */}
+                    {metaAccountType !== 'business' && (
+                        <Button
+                            title="Create Personal Profile"
+                            onPress={() => navigation.navigate('CreateProfile')} // Navigate to screen in RootStack
+                            color="#FF6347"
+                        />
+                    )}
+                    {/* Add some space if both buttons might show */}
+                    {metaAccountType !== 'business' && metaAccountType !== 'personal' && (<View style={{height: 10}} />)}
+                    {/* Show "Create Business" unless metadata explicitly says personal */}
+                    {metaAccountType !== 'personal' && (
+                        <Button
+                            title="Create Business Profile"
+                            onPress={() => navigation.navigate('CreateBusinessProfile')} // Navigate to screen in RootStack
+                            color="#007AFF" // Example different color
+                        />
+                    )}
+                </View>
+                {!metaAccountType && (
+                    <Text style={styles.noteText}>Choose the type of profile you'd like to create.</Text>
+                )}
+                {/* Add Logout Button here too if desired */}
+                 <View style={styles.logoutContainerStandalone}>
+                    <Pressable
+                      style={[styles.button, styles.buttonGhost]}
+                      onPress={handleLogout}
+                    >
+                      <Text style={styles.buttonGhostText}>Log Out</Text>
+                    </Pressable>
+                 </View>
+            </View>
+         </SafeAreaView>
+      );
   }
 
-  // Render Actual Profile inside a ScrollView now that we have valid profile data
+  // --- Profile Exists: Render Profile Details ---
+  // Determine display name based on type (ensure profile.account_type exists)
+  const displayName = profile.profile_type === 'business'
+      ? profile.business_name
+      : profile.first_name;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -203,8 +165,8 @@ const ProfileScreen: React.FC = () => {
       >
         {/* Header with Edit Button */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Profile</Text>
-          {/* This Pressable now correctly calls the updated handleEditProfile */}
+          {/* Display name in header if available */}
+          <Text style={styles.headerTitle}>{displayName || 'My Profile'}</Text>
           <Pressable
             style={[styles.button, styles.buttonOutline]}
             onPress={handleEditProfile}
@@ -213,9 +175,13 @@ const ProfileScreen: React.FC = () => {
           </Pressable>
         </View>
 
-        {/* Render the Profile Card component with the direct profile data */}
-        {/* profile.profile_pictures should contain the URLs directly from the DB */}
+        {/* Render the Profile Card component with the profile data from context */}
         <ProfileCard profile={profile} />
+
+         {/* Display some basic info (optional) */}
+         <Text style={styles.detailText}>Account Type: {profile.profile_type || 'Not Set'}</Text>
+         {user?.email && <Text style={styles.detailText}>Email: {user.email}</Text>}
+
 
         {/* Logout Button */}
         <View style={styles.logoutContainer}>
@@ -227,13 +193,12 @@ const ProfileScreen: React.FC = () => {
           </Pressable>
         </View>
       </ScrollView>
-       {/* Make sure Toast messages can render globally, usually configured in App.tsx */}
-       {/* <Toast /> */}
+      {/* Global Toast defined in App.tsx */}
     </SafeAreaView>
   );
 };
 
-// --- Styles --- (Copied from your previous code - unchanged)
+// --- Styles --- (Combined styles from previous examples)
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -250,26 +215,29 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    padding: 20, // Add padding for centered content too
+    backgroundColor: '#f0f0f0', // Match previous centered style bg
   },
-  errorContainer: {
-    padding: 20,
+  infoText: {
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 20,
+    color: '#555',
   },
-  errorText: {
-    fontSize: 18, // Slightly larger
-    fontWeight: '600',
-    color: "#dc3545",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  errorTextSmall: {
+  noteText: {
     fontSize: 14,
-    color: "#6c757d",
-    textAlign: "center",
-    marginBottom: 20, // Add space before button
+    textAlign: 'center',
+    marginTop: 15,
+    color: '#888',
   },
-  retryButton: {
-    marginTop: 15, // Consistent spacing for buttons
-    minWidth: 120, // Give buttons some minimum width
+  detailText: {
+      fontSize: 16,
+      marginVertical: 5, // Add some vertical space
+      color: '#444',
+  },
+  buttonContainer: {
+      width: '80%', // Limit button width
+      alignItems: 'center', // Center buttons if they stack
   },
   header: {
     flexDirection: "row",
@@ -281,9 +249,15 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "#FF6347", // Tomato color from example
+    flexShrink: 1, // Allow title to shrink if needed
+    marginRight: 10, // Space between title and button
   },
   logoutContainer: {
     marginTop: 32,
+    alignItems: "center",
+  },
+   logoutContainerStandalone: {
+    marginTop: 40, // More space when it's the main action
     alignItems: "center",
   },
   button: {
@@ -293,6 +267,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
+    marginVertical: 5, // Add vertical margin between buttons if they stack
   },
   buttonOutline: {
     borderColor: "#FF6347",
@@ -310,6 +285,7 @@ const styles = StyleSheet.create({
     color: "#6c757d",
     fontWeight: "500",
   },
+  // Removed unused error styles (can be added back if needed)
 });
 
 export default ProfileScreen;
