@@ -1,4 +1,6 @@
 // src/pages/CreateBusinessProfileScreen.tsx
+// MODIFIED TO INSERT INTO 'business_listings' TABLE
+
 import React, { useState } from 'react';
 import {
   View,
@@ -11,54 +13,59 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Image, // <-- Import Image component
+  Image,
 } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as ImagePicker from 'expo-image-picker'; // <-- Import ImagePicker
-import { supabase } from '../lib/supabaseClient'; // Adjust path if needed
-import { useAuth } from '../contexts/AuthContext'; // To potentially refresh profile data
+import * as ImagePicker from 'expo-image-picker';
+import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
+// Removed refreshProfile import if it specifically refreshed the single 'profiles' record in context
+// You might need a different way to refresh the *list* of businesses later.
+import Toast from 'react-native-toast-message'; // Using Toast for feedback
+import { v4 as uuidv4 } from 'uuid'; // Import uuid for unique filenames
+import 'react-native-get-random-values'; // Import polyfill
+import { Ionicons } from '@expo/vector-icons'
 
-// Import Param List type
-import { AuthStackParamList } from '../../App'; // Adjust path relative to App.tsx
+// Import Param List type (ensure it includes navigation targets)
+import { RootStackParamList } from '../../App'; // Use RootStackParamList or appropriate
 
-// Define validation schema - REMOVED website and profile_picture
+// Define validation schema - Stays the same for form fields
 const businessProfileSchema = z.object({
   business_name: z.string().min(2, { message: "Business name is required (min 2 chars)." }),
   category: z.string().min(3, { message: "Category is required (min 3 chars)." }),
-  description: z.string().optional(), // Optional
+  description: z.string().max(1000, { message: "Description max 1000 chars." }).optional(),
   address_street: z.string().optional(),
   address_city: z.string().optional(),
   address_state: z.string().optional(),
   address_postal_code: z.string().optional(),
   address_country: z.string().optional(),
   phone_number: z.string().optional(),
-  // website field removed
-  // profile_picture field removed
 });
 
 // Infer type from schema
 type BusinessProfileFormData = z.infer<typeof businessProfileSchema>;
 
-// Define navigation prop type
+// Define navigation prop type using RootStackParamList
 type CreateBusinessProfileNavigationProp = NativeStackNavigationProp<
-  AuthStackParamList,
-  'CreateBusinessProfile'
+  RootStackParamList, // Use the main param list
+  'CreateBusinessProfile' // Name of this route
 >;
 
 const CreateBusinessProfileScreen: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [isUploadingImages, setIsUploadingImages] = useState(false); // Specific loading state for uploads
-  const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([]); // State for selected image assets
+  // State variables remain largely the same
+  const [isSubmitting, setIsSubmitting] = useState(false); // Renamed loading
+  // Removed isUploadingImages state, use isSubmitting
+  const [selectedImageAssets, setSelectedImageAssets] = useState<ImagePicker.ImagePickerAsset[]>([]); // Use Asset type
   const navigation = useNavigation<CreateBusinessProfileNavigationProp>();
-  const { refreshProfile } = useAuth(); // Get refresh function
+  const { user } = useAuth(); // Get user directly
 
   const form = useForm<BusinessProfileFormData>({
     resolver: zodResolver(businessProfileSchema),
-    defaultValues: { // REMOVED website and profile_picture defaults
+    defaultValues: {
       business_name: '',
       category: '',
       description: '',
@@ -73,193 +80,182 @@ const CreateBusinessProfileScreen: React.FC = () => {
   });
   const { control, handleSubmit, formState: { errors } } = form;
 
-  // --- Function to handle image selection ---
-  const pickImages = async () => {
-    // Request permissions if needed
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      Alert.alert("Permission Required", "You need to allow access to your photos to upload business pictures.");
-      return;
-    }
+  // --- Function to handle image selection (Using refined version) ---
+   const MAX_BUSINESS_PHOTOS = 6; // Define limit here or import from constants
+   const pickImages = async () => {
+     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+     if (status !== 'granted') {
+       Alert.alert('Permission required', 'Sorry, we need camera roll permissions!');
+       return;
+     }
 
-    try {
-        let result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsMultipleSelection: true, // Allow multiple images
-          quality: 0.8, // Reduce quality slightly for faster uploads
-        });
+     const currentTotal = selectedImageAssets.length;
+     if (currentTotal >= MAX_BUSINESS_PHOTOS) {
+       Toast.show({ type: 'info', text1: 'Limit Reached', text2: `Max ${MAX_BUSINESS_PHOTOS} photos allowed.` });
+       return;
+     }
 
-        if (!result.canceled && result.assets) {
-          // Append newly selected images to the existing selection
-          // You might want to add a limit here, e.g., .slice(0, 10)
-          setSelectedImages(prev => [...prev, ...result.assets]);
-          console.log("Selected images:", result.assets.map(a => a.uri));
-        }
-    } catch (error) {
-        console.error("Image picking error:", error);
-        Alert.alert("Image Error", "Could not select images.");
-    }
-  };
+     try {
+       let result = await ImagePicker.launchImageLibraryAsync({
+         mediaTypes: ImagePicker.MediaTypeOptions.Images,
+         allowsMultipleSelection: true,
+         quality: 0.8,
+         selectionLimit: MAX_BUSINESS_PHOTOS - currentTotal,
+       });
 
-  // --- Function to handle form submission (including image uploads) ---
-  const onSubmit = async (formData: BusinessProfileFormData) => {
-    setLoading(true);
-    setIsUploadingImages(false); // Reset image upload status
-    let uploadedImageUrls: string[] = []; // To store public URLs
-
-    try {
-      // 1. Get the current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw userError || new Error("User not found.");
-      }
-
-      // --- 2. Upload Images (if any selected) ---
-      if (selectedImages.length > 0) {
-        setIsUploadingImages(true);
-        console.log(`Starting upload for ${selectedImages.length} images...`);
-
-        const uploadPromises = selectedImages.map(async (image) => {
-          try {
-            // Fetch the image data as Blob
-            const response = await fetch(image.uri);
-            const blob = await response.blob();
-
-            // Create a unique file path in Supabase storage
-            const fileExt = image.uri?.split('.').pop()?.toLowerCase() ?? 'jpg';
-            const mimeType = image.mimeType ?? `image/${fileExt}`;
-            const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-            const filePath = `${user.id}/business_photos/${fileName}`; // User-specific folder
-
-            console.log(`Uploading ${fileName} to ${filePath} (Type: ${mimeType})`);
-
-            const { data: uploadData, error: uploadError } = await supabase.storage
-              .from('profile_pictures') // <<< YOUR BUCKET NAME HERE
-              .upload(filePath, blob, {
-                contentType: mimeType,
-                cacheControl: '3600', // Cache for 1 hour
-                upsert: false, // Don't overwrite existing files (shouldn't happen with unique names)
-              });
-
-            if (uploadError) {
-              // Throw detailed error for debugging
-              console.error(`Upload Error for ${fileName}:`, uploadError);
-              throw new Error(`Failed to upload image ${fileName}. ${uploadError.message}`);
-            }
-
-            if (uploadData?.path) {
-              // Get public URL for the uploaded file
-               const { data: urlData } = supabase.storage
-                 .from('profile_pictures') // <<< YOUR BUCKET NAME HERE
-                 .getPublicUrl(uploadData.path);
-                console.log('Successfully uploaded:', urlData.publicUrl);
-               return urlData.publicUrl;
-            } else {
-                 throw new Error(`Upload succeeded for ${fileName} but no path returned.`);
-            }
-
-          } catch (imgUploadError: any) {
-            console.error('Error processing/uploading image:', image.uri, imgUploadError);
-            // Allow Promise.all to continue, but return null for failed uploads
-            return null;
-          }
-        });
-
-        // Wait for all upload attempts
-        const results = await Promise.all(uploadPromises);
-
-        // Filter out any null results (failed uploads)
-        uploadedImageUrls = results.filter((url): url is string => typeof url === 'string');
-
-        if (uploadedImageUrls.length !== selectedImages.length) {
-             console.warn("Some images failed to upload.");
-             // Optionally alert the user about partial failure
-             // Alert.alert("Upload Incomplete", "Some images could not be uploaded. Please try adding them again later.");
-        }
-        console.log('Final list of uploaded image URLs:', uploadedImageUrls);
-        setIsUploadingImages(false); // Done uploading attempts
+       if (!result.canceled && result.assets) {
+         const combined = [...selectedImageAssets, ...result.assets];
+         const limitedAssets = combined.slice(0, MAX_BUSINESS_PHOTOS);
+         if (combined.length > limitedAssets.length) {
+           Toast.show({ type: 'info', text1: 'Limit Exceeded', text2: `Selected images exceed the limit of ${MAX_BUSINESS_PHOTOS}.` });
+         }
+         setSelectedImageAssets(limitedAssets);
+         console.log(`[CreateBusinessListing] Added ${result.assets.length} new image assets. Total: ${limitedAssets.length}`);
+       } else {
+         console.log("[CreateBusinessListing] Image picking cancelled or no assets selected.");
        }
+     } catch (pickerError) {
+       console.error("[CreateBusinessListing] Error launching image picker:", pickerError);
+       Toast.show({ type: 'error', text1: 'Image Picker Error', text2: 'Could not open image library.' });
+     }
+   };
+
+
+   // --- Function to remove an image ---
+   const removeSelectedImage = (uriToRemove: string) => {
+       setSelectedImageAssets(prev => prev.filter(asset => asset.uri !== uriToRemove));
+       console.log(`[CreateBusinessListing] Removed new image asset: ${uriToRemove}`);
+   };
+
+  // --- Function to handle form submission (MODIFIED FOR business_listings TABLE) ---
+  const onSubmit = async (formData: BusinessProfileFormData) => {
+    // 1. Get the current user (ensure user is available)
+    if (!user) {
+      Toast.show({ type: 'error', text1: 'Authentication Error', text2: "User not found. Please log in again." });
+      return; // Early return if no user
+    }
+
+    setIsSubmitting(true); // Use isSubmitting state
+    let uploadedImageUrls: string[] = [];
+
+    try {
+      // --- 2. Upload Images (Using ArrayBuffer Method) ---
+      if (selectedImageAssets.length > 0) {
+        Toast.show({ type: 'info', text1: "Uploading images..." });
+        console.log(`[CreateBusinessListing] Attempting to upload ${selectedImageAssets.length} images.`);
+
+        for (const asset of selectedImageAssets) {
+            const uri = asset.uri;
+            console.log(`[CreateBusinessListing] Processing asset URI: ${uri}`);
+            const response = await fetch(uri);
+             if (!response.ok) throw new Error(`Failed to fetch image URI (${response.status}): ${uri}`);
+
+             const arrayBuffer = await response.arrayBuffer();
+             if (arrayBuffer.byteLength === 0) throw new Error("Cannot upload empty image file.");
+
+             const contentType = response.headers.get('content-type') ?? 'application/octet-stream';
+             const fileExt = asset.fileName?.split('.').pop()?.toLowerCase() ?? uri.split('.').pop()?.toLowerCase() ?? 'jpg';
+             const betterFileExt = contentType.split('/')[1]?.split('+')[0] ?? fileExt;
+             const fileName = `${uuidv4()}.${betterFileExt}`;
+             // Consider a path structure including listing ID later, for now user ID is fine for upload step
+             const filePath = `${user.id}/business_listings/${fileName}`; // Changed subfolder name
+
+             console.log(`[CreateBusinessListing] Uploading to: ${filePath}, Type: ${contentType}`);
+             // *** Ensure BUCKET NAME is correct ***
+             const { error: uploadError } = await supabase.storage
+                 .from('profile_pictures') // <<< YOUR BUCKET NAME HERE
+                 .upload(filePath, arrayBuffer, { contentType: contentType, upsert: false });
+
+             if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+
+             // *** Ensure BUCKET NAME is correct ***
+             const { data: urlData } = supabase.storage.from('profile_pictures').getPublicUrl(filePath);
+             if (!urlData?.publicUrl) throw new Error("Failed to get public URL after upload.");
+
+             uploadedImageUrls.push(urlData.publicUrl);
+             console.log("[CreateBusinessListing] Uploaded and got URL:", urlData.publicUrl);
+        } // End for loop
+
+        Toast.show({ type: 'success', text1: "Images uploaded!" });
+
+      } else {
+        console.log("[CreateBusinessListing] No images selected to upload.");
+      }
       // --- End Image Upload ---
 
-
-      // 3. Prepare data FOR UPSERT (match column names exactly)        // <<< *** MODIFIED SECTION START ***
-      //    MUST include the user_id itself for upsert.
-      const profileData = {
-        user_id: user.id, // <<< Add user_id for upsert/conflict resolution
+      // --- 3. Prepare data for INSERT into 'business_listings' ---
+      // *** THIS IS THE KEY CHANGE ***
+      const listingData = {
+        manager_user_id: user.id, // Link to the logged-in user
         business_name: formData.business_name,
         category: formData.category,
-        description: formData.description || null, // Ensure empty strings become null if DB expects null
+        description: formData.description || null,
         address_street: formData.address_street || null,
         address_city: formData.address_city || null,
         address_state: formData.address_state || null,
         address_postal_code: formData.address_postal_code || null,
         address_country: formData.address_country || null,
         phone_number: formData.phone_number || null,
-        profile_type: 'business', // <<< Explicitly set the profile type
-        // Add the array of uploaded photo URLs (if any)
-        // Assumes column 'business_photo_urls' is type text[] or jsonb
-        ...(uploadedImageUrls.length > 0 && { profile_picture: uploadedImageUrls }),
-        // Supabase handles created_at automatically if default is set.
-        // updated_at is good practice for upserts.
-        updated_at: new Date().toISOString(),
-        // Add any other fields that need default values on creation here
+        listing_photos: uploadedImageUrls, // Save photos to the new column
+        // 'created_at', 'updated_at', 'status' will use DB defaults
       };
 
-      // 4. UPSERT the profile row in Supabase
-      //    This will INSERT if no row with user_id exists, or UPDATE if it does.
-      console.log('Upserting profile with data:', profileData); // Log message changed
-      const { error: upsertError } = await supabase // Variable name changed
-        .from('profiles')
-        .upsert(profileData, { // Method changed to upsert
-          onConflict: 'user_id', // Specify conflict target
-        });
+      // --- 4. INSERT the new listing row into Supabase ---
+      // *** THIS IS THE KEY CHANGE ***
+      Toast.show({ type: 'info', text1: "Saving listing..." });
+      console.log('[CreateBusinessListing] Inserting listing with data:', listingData);
+      const { data: newListing, error: insertError } = await supabase
+        .from('business_listings') // <<< TARGET NEW TABLE
+        .insert(listingData)       // <<< USE INSERT
+        .select()                  // <<< Optionally get the new row back
+        .single();                 // <<< Expect only one row inserted
 
-      if (upsertError) { // Variable name changed
-        console.error("Profile upsert error:", upsertError); // Log message & var name changed
-         // Check for specific common errors like RLS violation
-         if (upsertError.message.includes('violates row-level security policy')) {
-             Alert.alert("Permission Denied", "You don't have permission to save this profile. Please check your Supabase Row Level Security policies.");
-         } else if (upsertError.message.includes('constraint')) {
-             Alert.alert("Database Error", "Could not save profile due to a database constraint. Please check your input.");
-         }
-         throw upsertError; // Re-throw the error
-       }
-      // <<< *** MODIFIED SECTION END ***
+      if (insertError) {
+        console.error("[CreateBusinessListing] Listing insert error:", insertError);
+        if (insertError.message.includes('violates row-level security policy')) {
+             throw new Error("Permission Denied: Could not create listing.");
+        } else if (insertError.message.includes('constraint')) {
+             throw new Error("Database Error: Could not save listing due to data conflict.");
+        }
+        throw insertError; // Re-throw generic error
+      }
 
-      // 5. Success
-      Alert.alert("Profile Created!", "Your business profile has been saved.");
-      await refreshProfile?.(); // Attempt to refresh profile data in AuthContext
+      console.log("[CreateBusinessListing] Listing created successfully:", newListing);
 
-      // Optional: Clear selected images after successful submission
-      setSelectedImages([]);
+      // --- 5. Success ---
+      Toast.show({ type: 'success', text1: 'Business Listing Created!', text2: 'Your new business listing has been saved.' });
+      setSelectedImageAssets([]); // Clear selected images on success
 
-      // Navigation handled by parent/context ideally
+      // Navigate back to the previous screen (likely the Profile screen)
+      // Or navigate to a new "My Listings" screen if you have one
+      navigation.goBack();
+      // Example: navigation.navigate('MyListingsScreen'); // If you create this screen
+
+      // Consider if/how you need to refresh data on the previous screen
+      // `refreshProfile` might not be relevant if it only fetches the `profiles` table.
+      // You might need a new context function or refetch on the listings screen.
 
     } catch (error: any) {
-      console.error('Create business profile error:', error); // Catch block remains the same
-      Alert.alert("Error", error.message || "Failed to save business profile.");
+      console.error('[CreateBusinessListing] Submit Error:', error);
+      Toast.show({ type: 'error', text1: 'Save Failed', text2: error.message || 'Failed to save business listing.' });
     } finally {
-      setLoading(false); // Turn off main loading indicator
-      setIsUploadingImages(false); // Ensure upload indicator is off
+      setIsSubmitting(false); // Turn off submitting indicator
     }
   };
 
-  // Helper to remove an image before upload
-  const removeSelectedImage = (indexToRemove: number) => {
-     setSelectedImages(prev => prev.filter((_, index) => index !== indexToRemove));
-  };
-
-  // --- JSX (Return statement and components below remain unchanged) ---
+  // --- JSX (Return statement and components below remain mostly unchanged) ---
+  // Minor changes: Title/Description text, button text
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.keyboardAvoidingView}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <View style={styles.header}>
-            <Text style={styles.title}>Create Business Profile</Text>
-            <Text style={styles.description}>Tell us about your business.</Text>
+            {/* Updated Title */}
+            <Text style={styles.title}>Create New Business Listing</Text>
+            <Text style={styles.description}>Enter the details for this specific business.</Text>
           </View>
 
           <View style={styles.content}>
@@ -268,7 +264,7 @@ const CreateBusinessProfileScreen: React.FC = () => {
               <Text style={styles.label}>Business Name *</Text>
               <Controller control={control} name="business_name"
                 render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput style={[styles.input, errors.business_name ? styles.inputError : null]} onBlur={onBlur} onChangeText={onChange} value={value} editable={!loading} />
+                  <TextInput style={[styles.input, errors.business_name ? styles.inputError : null]} onBlur={onBlur} onChangeText={onChange} value={value} editable={!isSubmitting} />
                 )} />
               {errors.business_name && <Text style={styles.errorText}>{errors.business_name.message}</Text>}
             </View>
@@ -278,7 +274,7 @@ const CreateBusinessProfileScreen: React.FC = () => {
               <Text style={styles.label}>Category *</Text>
               <Controller control={control} name="category"
                 render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput style={[styles.input, errors.category ? styles.inputError : null]} onBlur={onBlur} onChangeText={onChange} value={value} placeholder="e.g., Restaurant, Retail, Salon" editable={!loading} />
+                  <TextInput style={[styles.input, errors.category ? styles.inputError : null]} onBlur={onBlur} onChangeText={onChange} value={value} placeholder="e.g., Restaurant, Retail, Salon" editable={!isSubmitting} />
                 )} />
               {errors.category && <Text style={styles.errorText}>{errors.category.message}</Text>}
             </View>
@@ -288,89 +284,73 @@ const CreateBusinessProfileScreen: React.FC = () => {
               <Text style={styles.label}>Description</Text>
               <Controller control={control} name="description"
                 render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput style={[styles.input, styles.textArea, errors.description ? styles.inputError : null]} onBlur={onBlur} onChangeText={onChange} value={value} multiline numberOfLines={4} placeholder="What does your business offer?" editable={!loading} />
+                  <TextInput style={[styles.input, styles.textArea, errors.description ? styles.inputError : null]} onBlur={onBlur} onChangeText={onChange} value={value || ''} multiline numberOfLines={4} placeholder="What does this business offer?" editable={!isSubmitting} maxLength={1000}/>
                 )} />
               {errors.description && <Text style={styles.errorText}>{errors.description.message}</Text>}
             </View>
 
-             {/* Address Inputs (Existing) */}
-             <Text style={[styles.label, {marginTop: 10, marginBottom: 5, fontWeight: 'bold'}]}>Business Address</Text>
-             <View style={styles.inputGroup}>
-               <Text style={styles.label}>Street</Text>
-               <Controller control={control} name="address_street" render={({ field: { onChange, onBlur, value } }) => ( <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value} editable={!loading} /> )} />
-             </View>
+            {/* Address Inputs */}
+            <Text style={[styles.label, {marginTop: 10, marginBottom: 5, fontWeight: 'bold'}]}>Business Address</Text>
+            <View style={styles.inputGroup}>
+             <Text style={styles.label}>Street</Text>
+             <Controller control={control} name="address_street" render={({ field: { onChange, onBlur, value } }) => ( <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value || ''} editable={!isSubmitting}/> )} />
+            </View>
              <View style={styles.inputGroup}>
                <Text style={styles.label}>City</Text>
-               <Controller control={control} name="address_city" render={({ field: { onChange, onBlur, value } }) => ( <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value} editable={!loading} /> )} />
-             </View>
-             <View style={styles.addressRow}>
+               <Controller control={control} name="address_city" render={({ field: { onChange, onBlur, value } }) => ( <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value || ''} editable={!isSubmitting}/> )} />
+            </View>
+            <View style={styles.addressRow}>
                <View style={[styles.inputGroup, styles.addressRowItem]}>
                    <Text style={styles.label}>State</Text>
-                   <Controller control={control} name="address_state" render={({ field: { onChange, onBlur, value } }) => ( <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value} editable={!loading} /> )} />
+                   <Controller control={control} name="address_state" render={({ field: { onChange, onBlur, value } }) => ( <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value || ''} editable={!isSubmitting}/> )} />
                </View>
                <View style={[styles.inputGroup, styles.addressRowItem]}>
                    <Text style={styles.label}>Postal Code</Text>
-                   <Controller control={control} name="address_postal_code" render={({ field: { onChange, onBlur, value } }) => ( <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value} keyboardType="numeric" editable={!loading} /> )} />
+                   <Controller control={control} name="address_postal_code" render={({ field: { onChange, onBlur, value } }) => ( <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value || ''} keyboardType="numeric" editable={!isSubmitting}/> )} />
                </View>
-             </View>
-             <View style={styles.inputGroup}>
+            </View>
+            <View style={styles.inputGroup}>
                <Text style={styles.label}>Country</Text>
-               <Controller control={control} name="address_country" render={({ field: { onChange, onBlur, value } }) => ( <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value} editable={!loading} /> )} />
-             </View>
+               <Controller control={control} name="address_country" render={({ field: { onChange, onBlur, value } }) => ( <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value || ''} editable={!isSubmitting}/> )} />
+            </View>
 
-
-             {/* Contact Inputs (Existing - minus Website) */}
+             {/* Contact Inputs */}
              <Text style={[styles.label, {marginTop: 10, marginBottom: 5, fontWeight: 'bold'}]}>Contact Info</Text>
              <View style={styles.inputGroup}>
                <Text style={styles.label}>Phone Number</Text>
-               <Controller control={control} name="phone_number" render={({ field: { onChange, onBlur, value } }) => ( <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value} keyboardType="phone-pad" editable={!loading} /> )} />
+               <Controller control={control} name="phone_number" render={({ field: { onChange, onBlur, value } }) => ( <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value || ''} keyboardType="phone-pad" editable={!isSubmitting}/> )} />
                {errors.phone_number && <Text style={styles.errorText}>{errors.phone_number.message}</Text>}
-             </View>
+            </View>
 
-            {/* --- Website URL Input REMOVED --- */}
-            {/* --- Logo URL Input REMOVED --- */}
+            {/* --- Business Photos Uploader --- */}
+            <View style={styles.inputGroup}>
+                <Text style={[styles.label, { fontWeight: 'bold' }]}>Listing Photos (Max {MAX_BUSINESS_PHOTOS})</Text>
+                <Pressable
+                    style={[styles.button, styles.outlineButton, { marginBottom: 10 }, isSubmitting || selectedImageAssets.length >= MAX_BUSINESS_PHOTOS ? styles.buttonDisabled : {}]}
+                    onPress={pickImages}
+                    disabled={isSubmitting || selectedImageAssets.length >= MAX_BUSINESS_PHOTOS} >
+                     {/* Reusing styles from EditBusinessProfile for consistency */}
+                     <Ionicons name="images-outline" size={18} color="#FF6347" style={{ marginRight: 8 }} />
+                     <Text style={styles.outlineButtonText}>Select Photos</Text>
+                </Pressable>
 
-
-             {/* --- Business Photos Uploader --- */}
-             <View style={styles.inputGroup}>
-                 <Text style={[styles.label, { fontWeight: 'bold' }]}>Business Photos</Text>
-                 <Pressable
-                     style={({pressed}) => [
-                         styles.button,
-                         styles.imagePickerButton,
-                         (loading || isUploadingImages) && styles.buttonDisabled,
-                         pressed && !(loading || isUploadingImages) && styles.imagePickerButtonPressed,
-                     ]}
-                     onPress={pickImages}
-                     disabled={loading || isUploadingImages}>
-                     <Text style={styles.imagePickerButtonText}>Select Photos...</Text>
-                 </Pressable>
-
-                 {/* Display Selected Image Thumbnails */}
-                 {selectedImages.length > 0 && (
-                     <View style={styles.thumbnailContainer}>
-                         {selectedImages.map((image, index) => (
-                             <View key={index} style={styles.thumbnailWrapper}>
-                                  <Image source={{ uri: image.uri }} style={styles.thumbnail} />
-                                  <Pressable
+                {/* Display Selected Image Thumbnails */}
+                {selectedImageAssets.length > 0 && (
+                     <View style={styles.imageGrid}>
+                         {selectedImageAssets.map((asset) => (
+                             <View key={asset.uri} style={styles.imageContainer}>
+                                 <Image source={{ uri: asset.uri }} style={styles.imagePreview} />
+                                 <Pressable
                                      style={styles.removeImageButton}
-                                     onPress={() => removeSelectedImage(index)}
-                                     disabled={loading || isUploadingImages}
-                                   >
-                                       <Text style={styles.removeImageButtonText}>×</Text>
-                                   </Pressable>
+                                     onPress={() => removeSelectedImage(asset.uri)} // Use URI to remove
+                                     disabled={isSubmitting} >
+                                     <Ionicons name="close-circle" size={28} color="#fff" />
+                                 </Pressable>
                              </View>
                          ))}
                      </View>
                  )}
-                 {/* Show indicator specifically during image upload */}
-                 {isUploadingImages && (
-                    <View style={styles.uploadingIndicator}>
-                        <ActivityIndicator size="small" color="#FF6347"/>
-                        <Text style={styles.uploadingText}>Uploading photos...</Text>
-                    </View>
-                 )}
-             </View>
+            </View>
 
 
           </View> {/* End content View */}
@@ -380,112 +360,98 @@ const CreateBusinessProfileScreen: React.FC = () => {
               style={({ pressed }) => [
                 styles.button,
                 styles.buttonPrimary,
-                (loading || isUploadingImages) && styles.buttonDisabled, // Disable if general loading OR uploading images
-                pressed && !(loading || isUploadingImages) && styles.buttonPrimaryPressed,
+                isSubmitting && styles.buttonDisabled, // Use isSubmitting
+                pressed && !isSubmitting && styles.buttonPrimaryPressed,
               ]}
               onPress={handleSubmit(onSubmit)}
-              disabled={loading || isUploadingImages} // Disable if general loading OR uploading images
+              disabled={isSubmitting} // Use isSubmitting
             >
-              {loading ? (
-                 // Show generic spinner if form submit is the main blocker
-                 <ActivityIndicator size="small" color="#ffffff" />
+              {isSubmitting ? (
+                <>
+                  <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 8}} />
+                  <Text style={styles.buttonTextPrimary}>Saving...</Text>
+                </>
               ) : (
-                 <Text style={styles.buttonTextPrimary}>Save Business Profile</Text>
+                // Updated Button Text
+                <Text style={styles.buttonTextPrimary}>Create Business Listing</Text>
               )}
             </Pressable>
           </View>
         </View> {/* End card View */}
       </ScrollView>
+       {/* Add Toast component globally in App.tsx */}
+       <Toast />
     </KeyboardAvoidingView>
   );
 };
 
-// --- Styles --- (Styles remain unchanged from previous version)
+// --- Styles --- (Combined styles from previous examples for consistency)
 const styles = StyleSheet.create({
-    // (Keep all existing styles from your original code)
-    keyboardAvoidingView: { flex: 1, },
-    scrollContainer: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 30, paddingHorizontal: 20, backgroundColor: '#f8f9fa', },
-    card: { width: '100%', maxWidth: 500, backgroundColor: '#ffffff', borderRadius: 12, padding: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 2, }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, marginBottom: 20, },
-    header: { alignItems: 'center', marginBottom: 24, },
-    title: { fontSize: 24, fontWeight: 'bold', marginBottom: 8, color: '#333', },
-    description: { fontSize: 14, color: '#6c757d', textAlign: 'center', },
-    content: { marginBottom: 24, },
-    inputGroup: { marginBottom: 16, },
-    label: { fontSize: 14, fontWeight: '500', color: '#495057', marginBottom: 6, },
-    input: { borderWidth: 1, borderColor: '#ced4da', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, backgroundColor: '#fff', },
-    inputError: { borderColor: '#dc3545', },
-    errorText: { fontSize: 12, color: '#dc3545', marginTop: 4, },
-    textArea: { height: 100, textAlignVertical: 'top', },
-    addressRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 }, // Use gap for spacing
-    addressRowItem: { flex: 1, }, // Removed marginHorizontal, rely on gap
-    footer: { alignItems: 'center', marginTop: 10, },
-    button: { width: '100%', paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center', },
-    buttonPrimary: { backgroundColor: '#FF6347', }, // Theme color
-    buttonDisabled: { opacity: 0.6, }, // More visible disabled state
-    buttonPrimaryPressed: { opacity: 0.85, },
-    buttonTextPrimary: { color: '#ffffff', fontSize: 16, fontWeight: 'bold', },
-
-    // --- NEW STYLES for Image Picker ---
-    imagePickerButton: {
-        backgroundColor: '#e9ecef', // Lighter background for secondary action
-        borderColor: '#ced4da',
-        borderWidth: 1,
-        marginBottom: 10, // Space below button
-    },
-    imagePickerButtonPressed: {
-        backgroundColor: '#dee2e6', // Darker shade when pressed
-    },
-    imagePickerButtonText: {
-        color: '#495057', // Text color matching labels
-        fontSize: 16,
-        fontWeight: '500',
-    },
-    thumbnailContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        marginTop: 10,
-    },
-    thumbnailWrapper: {
-        position: 'relative', // Needed for absolute positioning of remove button
-        margin: 5,
-    },
-    thumbnail: {
-        width: 80,
-        height: 80,
-        borderRadius: 6,
-        borderWidth: 1,
-        borderColor: '#dee2e6',
-    },
-    removeImageButton: {
-        position: 'absolute',
-        top: -5,
-        right: -5,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        borderRadius: 10,
-        width: 20,
-        height: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    removeImageButtonText: {
-        color: '#ffffff',
-        fontSize: 12,
-        fontWeight: 'bold',
-        lineHeight: 18, // Adjust for vertical centering
-    },
-    uploadingIndicator: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 10,
-        padding: 8,
-        backgroundColor: '#f8f9fa',
-        borderRadius: 6,
-    },
-    uploadingText: {
-        marginLeft: 8,
-        fontSize: 14,
-        color: '#495057',
-    }
+  keyboardAvoidingView: { flex: 1, },
+  scrollContainer: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 30, paddingHorizontal: 20, backgroundColor: '#f8f9fa', },
+  card: { width: '100%', maxWidth: 500, backgroundColor: '#ffffff', borderRadius: 12, padding: 24, shadowColor: "#000", shadowOffset: { width: 0, height: 2, }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, marginBottom: 20, },
+  header: { alignItems: 'center', marginBottom: 24, },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 8, color: '#333', textAlign: 'center' }, // Centered title
+  description: { fontSize: 14, color: '#6c757d', textAlign: 'center', },
+  content: { marginBottom: 24, },
+  inputGroup: { marginBottom: 16, },
+  label: { fontSize: 14, fontWeight: '500', color: '#495057', marginBottom: 6, },
+  input: { borderWidth: 1, borderColor: '#ced4da', borderRadius: 8, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 12 : 10, fontSize: 16, backgroundColor: '#fff', },
+  inputError: { borderColor: '#dc3545', },
+  errorText: { fontSize: 12, color: '#dc3545', marginTop: 4, },
+  textArea: { height: 100, textAlignVertical: 'top', },
+  addressRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  addressRowItem: { flex: 1, },
+  footer: { alignItems: 'center', marginTop: 10, },
+  button: { width: '100%', paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+  buttonPrimary: { backgroundColor: '#FF6347', },
+  buttonDisabled: { opacity: 0.6, backgroundColor: '#cccccc' },
+  buttonPrimaryPressed: { opacity: 0.85, },
+  buttonTextPrimary: { color: '#ffffff', fontSize: 16, fontWeight: 'bold', },
+  outlineButton: {
+    borderWidth: 1,
+    borderColor: '#FF6347',
+    backgroundColor: '#fff',
+  },
+  outlineButtonText: {
+      color: '#FF6347',
+      fontSize: 16,
+      fontWeight: 'bold',
+  },
+   // --- Styles for Image Picker & Grid ---
+   imageGrid: {
+     flexDirection: 'row',
+     flexWrap: 'wrap',
+     marginTop: 10,
+     gap: 8,
+   },
+   imageContainer: {
+     width: '31%', // Adjust for gap
+     aspectRatio: 1,
+     borderWidth: 1,
+     borderColor: '#eee',
+     borderRadius: 6,
+     overflow: 'hidden',
+     backgroundColor: '#f0f0f0',
+     position: 'relative',
+   },
+   imagePreview: {
+     width: '100%',
+     height: '100%',
+   },
+   removeImageButton: {
+     position: 'absolute',
+     top: 2,
+     right: 2,
+     backgroundColor: 'rgba(0,0,0,0.6)',
+     borderRadius: 14,
+     width: 28,
+     height: 28,
+     justifyContent: 'center',
+     alignItems: 'center',
+     zIndex: 1,
+   },
+   // Removed old thumbnail styles
 });
 
 export default CreateBusinessProfileScreen;

@@ -1,33 +1,25 @@
-// src/screens/DiscoverScreen.tsx
+// src/screens/DiscoverScreen.tsx (CORRECTED)
+
 import React, { useEffect } from 'react';
-// *** Import Button ***
 import { View, Text, StyleSheet, ActivityIndicator, Button } from 'react-native';
-import { useDiscovery } from '../contexts/DiscoveryContext';
-import BusinessProfileCard from '../components/EventCard'; // Ensure this path and export name are correct
-import { useAuth } from '../contexts/AuthContext'; // Import useAuth
+// *** Import the CORRECT names from the context ***
+import { useDiscovery, BusinessListing } from '../contexts/DiscoveryContext'; // Make sure BusinessListing is exported or import from card
+import BusinessProfileCard from '../components/BusinessProfileCard'; // Ensure path is correct
+import { useAuth } from '../contexts/AuthContext';
 
 const DiscoverScreen: React.FC = () => {
-    const { session } = useAuth(); // Get session info
+    const { session } = useAuth();
+    // *** Use the CORRECT names provided by the context ***
     const {
-        currentProfile,
-        likeProfile,
-        dismissProfile,
-        isLoadingProfiles,
-        reloadProfiles, // *** Get reloadProfiles function from context ***
-        fetchDiscoveryData, // Keep fetchDiscoveryData if needed elsewhere
+        currentListing,    // <-- Use currentListing
+        likeListing,       // <-- Use likeListing
+        dismissListing,    // <-- Use dismissListing
+        isLoadingListings, // <-- Use isLoadingListings
+        reloadListings,    // <-- Use reloadListings
     } = useDiscovery();
 
-    // Optional: Add logic to refetch if needed, e.g., pull-to-refresh
-    // useEffect(() => {
-    //     if (session) {
-    //         // Context usually handles initial fetch based on session change now
-    //         // fetchDiscoveryData();
-    //     }
-    // }, [session]); // Removed fetchDiscoveryData dependency if context handles it
-
-    // Loading indicator logic (remains the same)
-    // Shows ONLY on initial load before first profile appears
-    if (isLoadingProfiles && !currentProfile) {
+    // *** Update loading logic with CORRECT variable name ***
+    if (isLoadingListings && !currentListing) { // <-- Use isLoadingListings and currentListing
         return (
             <View style={styles.centered}>
                 <ActivityIndicator size="large" color="#FF6347" />
@@ -35,52 +27,52 @@ const DiscoverScreen: React.FC = () => {
         );
     }
 
+     // --- DEBUGGING: Add this log ---
+     console.log('DiscoverScreen Render:', { isLoadingListings, currentListing });
+     // -----------------------------
+
     return (
         <View style={styles.container}>
             <View style={styles.contentArea}>
-                {currentProfile ? (
-                    // If there's a profile, show the card
+                {/* *** Check if currentListing exists *** */}
+                {currentListing ? ( // <-- Use currentListing
                     <View style={styles.cardContainer}>
                         <BusinessProfileCard
-                            profile={currentProfile}
-                            onLikeBusiness={() => likeProfile(currentProfile.user_id)}
-                            onDismissBusiness={() => dismissProfile(currentProfile.user_id)}
+                            listing={currentListing} // Pass data via 'listing' prop
+                            // *** Use CORRECT function names and pass manager_user_id ***
+                            onLikeBusiness={() => likeListing(currentListing.manager_user_id)} // <-- Use likeListing
+                            onDismissBusiness={() => dismissListing(currentListing.manager_user_id)} // <-- Use dismissListing
                         />
                     </View>
                 ) : (
-                    // Otherwise (no profile currently displayable)
-                    // Show "No Content" message and Reload button only if NOT loading
-                    !isLoadingProfiles && (
-                        // *** Added a container view for message + button ***
+                    // *** Update condition with CORRECT variable name ***
+                    !isLoadingListings && ( // <-- Use isLoadingListings
                         <View style={styles.noContentContainer}>
                             <View style={styles.noContentCard}>
-                                {/* *** Corrected text *** */}
                                 <Text style={styles.noContentTitle}>That's everyone!</Text>
                                 <Text style={styles.noContentText}>
                                     You've seen all available profiles for now.
                                 </Text>
                             </View>
-                            {/* *** ADDED Reload Button *** */}
                             <View style={styles.reloadButtonContainer}>
                                 <Button
                                     title="Reload Profiles"
-                                    onPress={reloadProfiles} // Call the function from context
-                                    color="#FF6347" // Example button color
-                                    // disabled={isLoadingProfiles} // Optionally disable if loading during reload
+                                    // *** Use CORRECT function name ***
+                                    onPress={reloadListings} // <-- Use reloadListings
+                                    color="#FF6347"
                                 />
                             </View>
                         </View>
                     )
                 )}
             </View>
-            {/* Optional: Add a button to manually refresh ALL data */}
-            {/* <Button title="Refresh All Data" onPress={fetchDiscoveryData} disabled={isLoadingProfiles} /> */}
         </View>
     );
 };
 
-// --- Styles ---
+// --- Styles --- (Keep styles as they were)
 const styles = StyleSheet.create({
+   // ... styles remain the same
     container: {
         flex: 1,
         alignItems: 'center',
@@ -97,18 +89,17 @@ const styles = StyleSheet.create({
         width: '90%',
         maxWidth: 400,
         height: '85%', // Adjust as needed
-        marginBottom: 20,
+        // marginBottom: 20, // Remove if action buttons are part of the card's flex layout
     },
-    // *** ADDED: Container for the "No Content" Card + Button ***
     noContentContainer: {
-        width: '90%', // Match card container width or adjust
-        maxWidth: 350, // Match noContentCard max width
-        alignItems: 'center', // Center card and button
+        width: '90%',
+        maxWidth: 350,
+        alignItems: 'center',
         justifyContent: 'center',
-        paddingBottom: 20, // Add padding if needed
+        paddingBottom: 20,
     },
     noContentCard: {
-        width: '100%', // Take full width of noContentContainer
+        width: '100%',
         padding: 24,
         backgroundColor: '#ffffff',
         borderRadius: 12,
@@ -118,8 +109,6 @@ const styles = StyleSheet.create({
         shadowRadius: 1.41,
         elevation: 2,
         alignItems: 'center',
-        // Removed marginHorizontal as centering is handled by parent
-        // maxWidth: 350, // Max width handled by parent container
     },
     noContentTitle: {
         fontSize: 20,
@@ -133,10 +122,10 @@ const styles = StyleSheet.create({
         color: '#6c757d',
         textAlign: 'center',
     },
-    // *** ADDED: Style for button container ***
      reloadButtonContainer: {
-        marginTop: 20, // Space above button
-        width: '100%', // Button takes width of the container
+        marginTop: 20,
+        width: '100%', // Ensure button container spans width for centering/styling
+        maxWidth: 250, // Optional: Constrain button width
     },
     centered: {
         flex: 1,
@@ -145,5 +134,6 @@ const styles = StyleSheet.create({
         backgroundColor: '#f0f0f0',
     },
 });
+
 
 export default DiscoverScreen;

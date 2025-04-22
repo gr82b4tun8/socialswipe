@@ -1,6 +1,6 @@
-// src/pages/ProfileScreen.tsx (MODIFIED)
+// src/pages/ProfileScreen.tsx (Verified logic for business-only users)
 
-import React from "react"; // Removed useEffect, useState
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,154 +8,220 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
-  Alert, // Keep for potential use
+  Alert,
   SafeAreaView,
-  Button, // Import Button for creation prompts
+  FlatList,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import Toast from "react-native-toast-message"; // Keep for logout/edit feedback
+import Toast from "react-native-toast-message";
 
-import { useAuth } from "../contexts/AuthContext"; // Use profile/loading from context
-import ProfileCard from "../components/ProfileCard"; // Adjust path if needed
-import { supabase } from "../lib/supabaseClient"; // Adjust path if needed
+import { useAuth } from "../contexts/AuthContext"; // Using simplified context
+import { supabase } from "../lib/supabaseClient";
+import { RootStackParamList } from '../../App'; // Adjust path if needed
+import { Ionicons } from '@expo/vector-icons';
 
-// Import the RootStackParamList from App.tsx or your types file
-// Ensure this path is correct relative to your ProfileScreen.tsx file
-import { RootStackParamList } from '../../App';
-
-// Define Profile type (ensure this matches context and DB)
-interface Profile {
-  id: string;
+// Interface for the primary user profile data (fetched from individual_profiles)
+interface ManagerProfile {
+  user_id: string;
   created_at: string;
   updated_at: string;
-  profile_type: 'personal' | 'business' | null; // Make sure this is here
-  first_name?: string | null; // Use optional if they can be null
+  first_name?: string | null;
   last_name?: string | null;
-  date_of_birth?: string | null;
-  gender?: string | null;
-  bio?: string | null;
-  interests?: string[] | null;
-  location?: string | null;
-  looking_for?: string | null;
-  profile_pictures?: string[] | null;
-  business_name?: string | null; // Add business fields if applicable
-  // Add any other fields from your profiles table
+  username?: string | null;
+  // Add other fields fetched from individual_profiles if needed
 }
 
-// Update navigation prop type to use RootStackParamList
+// Interface for Business Listing data
+interface BusinessListing {
+  id: string;
+  manager_user_id: string;
+  business_name: string;
+  category: string;
+  description?: string | null;
+  address_street?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
+  address_postal_code?: string | null;
+  address_country?: string | null;
+  phone_number?: string | null;
+  listing_photos?: string[] | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+
 type ProfileScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList, // Use the correct param list
-  'Main' // This screen lives within 'Main', but can navigate to RootStack screens
+  RootStackParamList,
+  'Main'
 >;
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<ProfileScreenNavigationProp>();
-  // Get session, user, profile, and loading states directly from context
   const {
-      session,
-      user, // Keep user if needed for email display etc.
-      profile, // Use profile from context
-      loadingAuth, // Might still need this initial check
-      loadingProfile // Use loading state from context
+    session,
+    user,
+    loadingAuth,
   } = useAuth();
 
-  // REMOVED: Local useState for profile and loading
-  // REMOVED: useEffect fetching profile data (handled by AuthContext now)
+  // --- Local State ---
+  const [managerProfile, setManagerProfile] = useState<ManagerProfile | null>(null);
+  const [loadingManagerProfile, setLoadingManagerProfile] = useState(true);
+  const [businessListings, setBusinessListings] = useState<BusinessListing[]>([]);
+  const [loadingListings, setLoadingListings] = useState(true);
 
+  // --- Fetch Manager (Individual) Profile ---
+  useEffect(() => {
+    if (user?.id) {
+        const fetchManagerProfile = async () => {
+            if (!managerProfile) setLoadingManagerProfile(true);
+            console.log("[ProfileScreen] Fetching manager (individual) profile for user:", user.id);
 
-  // --- Logout Handler ---
+            // *** Ensure 'individual_profiles' table exists and user_id is PRIMARY KEY ***
+            const { data, error } = await supabase
+                .from('individual_profiles') // <<< CONFIRM/ADJUST TABLE NAME
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+
+            if (error && error.code !== 'PGRST116') {
+                console.error("[ProfileScreen] Error fetching manager profile:", error);
+                 if (error.message.includes('JSON object requested, multiple (or no) rows returned')) {
+                     Toast.show({ type: 'error', text1: 'Profile Error', text2: 'Inconsistent profile data found.' });
+                 } else {
+                    Toast.show({ type: 'error', text1: 'Error loading profile', text2: error.message });
+                 }
+                setManagerProfile(null);
+            } else {
+                console.log("[ProfileScreen] Manager profile data:", data);
+                setManagerProfile(data);
+            }
+            setLoadingManagerProfile(false);
+        };
+        fetchManagerProfile();
+    } else {
+      setManagerProfile(null);
+      setLoadingManagerProfile(false);
+    }
+  }, [user]);
+
+  // --- Fetch Business Listings ---
+  useEffect(() => {
+    if (user?.id) {
+      const fetchListings = async () => {
+        if (businessListings.length === 0) setLoadingListings(true);
+        console.log("[ProfileScreen] Fetching business listings for user:", user.id);
+        const { data, error } = await supabase
+          .from('business_listings')
+          .select('*')
+          .eq('manager_user_id', user.id); // *** Ensure this column name is correct ***
+
+        if (error) {
+          console.error("[ProfileScreen] Error fetching business listings:", error);
+          Toast.show({ type: 'error', text1: 'Error loading businesses', text2: error.message });
+          setBusinessListings([]);
+        } else {
+          console.log(`[ProfileScreen] Found ${data?.length ?? 0} business listings.`);
+          setBusinessListings(data || []);
+        }
+        setLoadingListings(false);
+      };
+      fetchListings();
+    } else {
+      setBusinessListings([]);
+      setLoadingListings(false);
+    }
+  }, [user]);
+
+  // --- Handlers ---
   const handleLogout = async () => {
-    // Show loading state?
     const { error } = await supabase.auth.signOut();
-    if (error) {
-      Toast.show({ type: "error", text1: "Logout failed", text2: error.message });
-    } else {
-      Toast.show({ type: "success", text1: "Logged out successfully" });
-      // AppContent will handle redirecting to AuthStack automatically
-      // No need for navigation.reset here if AuthContext handles state change correctly
+    if (error) { Toast.show({ type: "error", text1: "Logout failed", text2: error.message }); }
+    else { Toast.show({ type: "success", text1: "Logged out successfully" }); }
+  };
+
+  const handleEditManagerProfile = () => {
+    // This button is only rendered if managerProfile exists (see below)
+    if (managerProfile) {
+        console.log("Navigating to EditProfile (for manager/individual profile)");
+        navigation.navigate('EditProfile', { profileData: managerProfile });
     }
   };
 
-  // --- Edit Profile Navigation ---
-  const handleEditProfile = () => {
-    // Navigate to EditProfile screen (ensure 'EditProfile' is in RootStackParamList)
-    if (profile) { // Only allow editing if profile exists
-        navigation.navigate('EditProfile');
-    } else {
-        Toast.show({ type: 'info', text1: 'Create a profile first!' });
-    }
+  const handleAddBusiness = () => {
+      console.log("Navigating to CreateBusinessProfileScreen");
+      navigation.navigate('CreateBusinessProfileScreen');
   };
 
-  // REMOVED: handleRetry (no longer fetching locally)
+  const handleManageListings = () => {
+    console.log("Navigate to MyListingsScreen (to be created)");
+    Toast.show({ type: 'info', text1: 'Manage Listings screen not implemented yet.' });
+  };
 
   // --- Render Logic ---
 
-  // Show loader if either initial auth check is happening OR profile is loading
-  // Note: AppContent usually handles the loadingAuth part before rendering this screen,
-  // but checking loadingProfile is essential here. Checking authLoading is belt-and-suspenders.
-  if (loadingAuth || loadingProfile) {
+  // 1. Loading State Check
+  if (loadingAuth || (user && (loadingManagerProfile || loadingListings))) {
     return (
       <SafeAreaView style={styles.safeArea}>
-          <View style={styles.centered}>
-              <ActivityIndicator size="large" color="#FF6347" />
-              <Text>Loading Profile...</Text>
-          </View>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#FF6347" />
+          <Text>Loading Data...</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
-  // If loading is done, but we still don't have a profile object from context
-  if (!profile) {
-      // Determine potential account type hint from user metadata if available
-      const metaAccountType = session?.user?.user_metadata?.profile_type;
+  // 2. No Profile State Check: Show prompt ONLY if logged in AND both profile types are missing
+  if (user && !managerProfile && businessListings.length === 0) {
+    console.log("[ProfileScreen] Rendering 'Create Profile' prompt.");
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.centered}>
+          <Text style={styles.infoText}>How would you like to get started?</Text>
+          <Text style={styles.subInfoText}>Choose the type of profile you want to create first.</Text>
+          <View style={styles.profileChoiceButtonContainer}>
+            <Pressable style={[styles.button, styles.buttonPrimaryChoice]} onPress={() => navigation.navigate('CreateProfile')}>
+                <Text style={styles.buttonPrimaryChoiceText}>Create Personal Profile</Text>
+            </Pressable>
+            <Pressable style={[styles.button, styles.buttonSecondaryChoice]} onPress={handleAddBusiness}>
+                <Text style={styles.buttonSecondaryChoiceText}>Create Business Profile</Text>
+            </Pressable>
+          </View>
+          <View style={styles.logoutContainerStandalone}>
+            <Pressable style={[styles.button, styles.buttonGhost]} onPress={handleLogout}>
+              <Text style={styles.buttonGhostText}>Log Out</Text>
+            </Pressable>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
+  // 3. Logged Out State Check (Fallback)
+  if (!user) {
+      console.log("[ProfileScreen] Rendering 'Not Logged In' state.");
       return (
-        <SafeAreaView style={styles.safeArea}>
-            <View style={styles.centered}>
-                <Text style={styles.infoText}>You haven't created a profile yet.</Text>
-                <View style={styles.buttonContainer}>
-                    {/* Show "Create Personal" unless metadata explicitly says business */}
-                    {metaAccountType !== 'business' && (
-                        <Button
-                            title="Create Personal Profile"
-                            onPress={() => navigation.navigate('CreateProfile')} // Navigate to screen in RootStack
-                            color="#FF6347"
-                        />
-                    )}
-                    {/* Add some space if both buttons might show */}
-                    {metaAccountType !== 'business' && metaAccountType !== 'personal' && (<View style={{height: 10}} />)}
-                    {/* Show "Create Business" unless metadata explicitly says personal */}
-                    {metaAccountType !== 'personal' && (
-                        <Button
-                            title="Create Business Profile"
-                            onPress={() => navigation.navigate('CreateBusinessProfile')} // Navigate to screen in RootStack
-                            color="#007AFF" // Example different color
-                        />
-                    )}
-                </View>
-                {!metaAccountType && (
-                    <Text style={styles.noteText}>Choose the type of profile you'd like to create.</Text>
-                )}
-                {/* Add Logout Button here too if desired */}
-                 <View style={styles.logoutContainerStandalone}>
-                    <Pressable
-                      style={[styles.button, styles.buttonGhost]}
-                      onPress={handleLogout}
-                    >
-                      <Text style={styles.buttonGhostText}>Log Out</Text>
-                    </Pressable>
-                 </View>
-            </View>
-         </SafeAreaView>
+          <SafeAreaView style={styles.safeArea}>
+              <View style={styles.centered}>
+                  <Text>You are not logged in.</Text>
+              </View>
+          </SafeAreaView>
       );
   }
 
-  // --- Profile Exists: Render Profile Details ---
-  // Determine display name based on type (ensure profile.account_type exists)
-  const displayName = profile.profile_type === 'business'
-      ? profile.business_name
-      : profile.first_name;
+  // 4. Profile Exists State: Render the main view
+  console.log("[ProfileScreen] Rendering main profile view.");
+
+  // Determine display name: Prioritize individual, then first business, then email
+  const getDisplayName = () => {
+      if (managerProfile?.first_name) return managerProfile.first_name;
+      if (managerProfile?.username) return managerProfile.username;
+      if (businessListings.length > 0) return businessListings[0].business_name;
+      return user?.email || 'My Account';
+  };
+  const displayName = getDisplayName();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -163,129 +229,117 @@ const ProfileScreen: React.FC = () => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContentContainer}
       >
-        {/* Header with Edit Button */}
+        {/* --- Header --- */}
         <View style={styles.header}>
-          {/* Display name in header if available */}
-          <Text style={styles.headerTitle}>{displayName || 'My Profile'}</Text>
-          <Pressable
-            style={[styles.button, styles.buttonOutline]}
-            onPress={handleEditProfile}
-          >
-            <Text style={styles.buttonOutlineText}>Edit Profile</Text>
-          </Pressable>
+           {/* Add Business Button */}
+          <View style={styles.headerButtonContainerLeft}>
+              <Pressable style={[styles.button, styles.headerAddButton]} onPress={handleAddBusiness}>
+                  <Ionicons name="add-circle-outline" size={24} color="#007AFF" />
+              </Pressable>
+          </View>
+          {/* Display Name */}
+          <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">{displayName}</Text>
+          {/* Edit Button (Conditional) */}
+          <View style={styles.headerButtonContainer}>
+            {/* Only render Edit button if managerProfile exists */}
+            {managerProfile && (
+                <Pressable style={[styles.button, styles.buttonOutline, styles.headerButton]} onPress={handleEditManagerProfile}>
+                    <Ionicons name="person-circle-outline" size={20} color={"#FF6347"} style={{ marginRight: 5 }}/>
+                    <Text style={styles.buttonOutlineText}>Edit</Text>
+                </Pressable>
+            )}
+          </View>
         </View>
 
-        {/* Render the Profile Card component with the profile data from context */}
-        <ProfileCard profile={profile} />
+        {/* --- Display Manager (Individual) Info --- (Conditional) */}
+        {/* Only render Account Details if managerProfile exists */}
+        {managerProfile && (
+             <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Account Details</Text>
+                <Text style={styles.detailText}>Name: {managerProfile.first_name || 'N/A'} {managerProfile.last_name || ''}</Text>
+                {managerProfile.username && <Text style={styles.detailText}>Username: {managerProfile.username}</Text>}
+                {user?.email && <Text style={styles.detailText}>Email: {user.email}</Text>}
+             </View>
+        )}
 
-         {/* Display some basic info (optional) */}
-         <Text style={styles.detailText}>Account Type: {profile.profile_type || 'Not Set'}</Text>
-         {user?.email && <Text style={styles.detailText}>Email: {user.email}</Text>}
-
+        {/* --- Business Listings Section --- */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>My Business Listings</Text>
+          {/* Display listings if available */}
+          {businessListings.length > 0 ? (
+            <>
+              <Text style={styles.detailText}>You manage {businessListings.length} listing(s).</Text>
+              <FlatList
+                data={businessListings}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <View style={styles.listingItem}>
+                    <Text style={styles.listingName}>{item.business_name}</Text>
+                    <Text style={styles.listingCategory}>{item.category}</Text>
+                  </View>
+                )}
+                style={styles.listingList}
+              />
+              <Pressable style={[styles.button, styles.manageButton]} onPress={handleManageListings}>
+                  <Ionicons name="briefcase-outline" size={18} color="#fff" style={{ marginRight: 8 }}/>
+                  <Text style={styles.manageButtonText}>Manage Listings</Text>
+              </Pressable>
+            </>
+          ) : (
+            // Display message if no listings exist (but profile exists)
+            <>
+              <Text style={styles.detailText}>You haven't added any business listings yet.</Text>
+            </>
+          )}
+        </View>
 
         {/* Logout Button */}
         <View style={styles.logoutContainer}>
-          <Pressable
-            style={[styles.button, styles.buttonGhost]}
-            onPress={handleLogout}
-          >
+          <Pressable style={[styles.button, styles.buttonGhost]} onPress={handleLogout}>
             <Text style={styles.buttonGhostText}>Log Out</Text>
           </Pressable>
         </View>
       </ScrollView>
-      {/* Global Toast defined in App.tsx */}
     </SafeAreaView>
   );
 };
 
-// --- Styles --- (Combined styles from previous examples)
+// --- Styles --- (Ensure all required styles are present)
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#f8f9fa", // Example background
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContentContainer: {
-    padding: 16,
-    paddingBottom: 80,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20, // Add padding for centered content too
-    backgroundColor: '#f0f0f0', // Match previous centered style bg
-  },
-  infoText: {
-    fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#555',
-  },
-  noteText: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 15,
-    color: '#888',
-  },
-  detailText: {
-      fontSize: 16,
-      marginVertical: 5, // Add some vertical space
-      color: '#444',
-  },
-  buttonContainer: {
-      width: '80%', // Limit button width
-      alignItems: 'center', // Center buttons if they stack
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#FF6347", // Tomato color from example
-    flexShrink: 1, // Allow title to shrink if needed
-    marginRight: 10, // Space between title and button
-  },
-  logoutContainer: {
-    marginTop: 32,
-    alignItems: "center",
-  },
-   logoutContainerStandalone: {
-    marginTop: 40, // More space when it's the main action
-    alignItems: "center",
-  },
-  button: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    marginVertical: 5, // Add vertical margin between buttons if they stack
-  },
-  buttonOutline: {
-    borderColor: "#FF6347",
-    backgroundColor: "transparent",
-  },
-  buttonOutlineText: {
-    color: "#FF6347",
-    fontWeight: "500",
-  },
-  buttonGhost: {
-    borderColor: "transparent",
-    backgroundColor: "transparent",
-  },
-  buttonGhostText: {
-    color: "#6c757d",
-    fontWeight: "500",
-  },
-  // Removed unused error styles (can be added back if needed)
+  // Paste all styles from the previous version here...
+  safeArea: { flex: 1, backgroundColor: "#f8f9fa" },
+  scrollView: { flex: 1 },
+  scrollContentContainer: { padding: 16, paddingBottom: 80 },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20, backgroundColor: '#f0f0f0' },
+  infoText: { fontSize: 18, textAlign: 'center', marginBottom: 10, color: '#555' },
+  subInfoText: { fontSize: 15, textAlign: 'center', marginBottom: 30, color: '#666', maxWidth: '90%' },
+  detailText: { fontSize: 16, marginVertical: 4, color: '#444', textAlign: 'center' },
+  profileChoiceButtonContainer: { width: '85%', alignItems: 'stretch', marginTop: 10 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24, width: '100%' },
+  headerButtonContainer: { flex: 1, alignItems: 'flex-end' },
+  headerButtonContainerLeft: { flex: 1, alignItems: 'flex-start' },
+  headerButton: { paddingVertical: 6, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', borderWidth: 0 },
+  headerAddButton: { padding: 8, borderWidth: 0, backgroundColor: 'transparent' },
+  headerTitle: { fontSize: 22, fontWeight: "bold", color: "#333", textAlign: 'center', flex: 2, marginHorizontal: 5 },
+  section: { marginBottom: 24, padding: 16, backgroundColor: '#fff', borderRadius: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12, textAlign: 'center', color: '#333' },
+  listingList: { marginTop: 10, marginBottom: 15 },
+  listingItem: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: '#fafafa', borderRadius: 4, marginBottom: 5 },
+  listingName: { fontSize: 16, fontWeight: '500', color: '#444' },
+  listingCategory: { fontSize: 14, color: '#777' },
+  logoutContainer: { marginTop: 24, alignItems: "center" },
+  logoutContainerStandalone: { marginTop: 40, width: '80%', alignItems: "stretch" },
+  button: { paddingVertical: 14, paddingHorizontal: 20, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, marginVertical: 8, flexDirection: 'row' },
+  buttonPrimaryChoice: { backgroundColor: '#FF6347', borderColor: '#FF6347' },
+  buttonPrimaryChoiceText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
+  buttonSecondaryChoice: { backgroundColor: '#4682B4', borderColor: '#4682B4' },
+  buttonSecondaryChoiceText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
+  buttonOutline: { borderColor: "#FF6347", backgroundColor: "transparent" },
+  buttonOutlineText: { color: "#FF6347", fontWeight: "500", fontSize: 14 },
+  buttonGhost: { borderColor: "transparent", backgroundColor: "transparent" },
+  buttonGhostText: { color: "#6c757d", fontWeight: "500" },
+  manageButton: { backgroundColor: '#6c757d', borderColor: '#6c757d', width: '100%' },
+  manageButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 });
 
 export default ProfileScreen;

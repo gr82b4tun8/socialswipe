@@ -1,62 +1,62 @@
-// src/pages/EventsScreen.tsx
+// src/pages/EventsScreen.tsx (MODIFIED to display Liked Listings)
 
 import React, { useCallback } from 'react';
 import {
     View,
     Text,
     StyleSheet,
-    FlatList, // Use FlatList for efficient scrolling
+    FlatList,
     ActivityIndicator,
     Dimensions,
-    SafeAreaView // Use SafeAreaView for top/bottom padding on notches
+    SafeAreaView
 } from 'react-native';
-import { useDiscovery } from '../contexts/DiscoveryContext'; // Adjust path if needed
-import BusinessProfileCard, { BusinessProfile } from '../components/EventCard'; // Adjust path & ensure BusinessProfile type is exported or defined here
+// Import context and the specific type for listings
+import { useDiscovery, BusinessListing } from '../contexts/DiscoveryContext'; // Adjust path if needed
+// Import the BusinessProfileCard component (ensure it expects the 'listing' prop)
+import BusinessProfileCard from '../components/BusinessProfileCard'; // Adjust path if needed
 
+// Consider renaming this component later (e.g., LikedListingsScreen) for clarity
 const EventsScreen: React.FC = () => {
     const {
-        likedProfilesData, // Array of liked BusinessProfile objects
-        isLoadingProfiles, // Loading state from context
-        unlikeProfile,     // Function to unlike a profile
-        fetchDiscoveryData // Function to potentially refresh data
+        // Use the correct context variables related to listings
+        likedListingsData,  // Array of liked BusinessListing objects
+        isLoadingListings,  // Loading state for listings
+        unlikeListing,      // Function to unlike a listing (using manager_user_id)
+        fetchDiscoveryData  // Function to potentially refresh all data
     } = useDiscovery();
 
     // Define what happens when the 'X' (Dismiss) button is pressed on a card
-    // In this context, it should trigger "unlike"
-    const handleUnlike = useCallback((profileUserId: string) => {
-        console.log(`EventsScreen: Unliking profile ${profileUserId}`);
-        unlikeProfile(profileUserId);
-        // Optionally show a toast or confirmation
-    }, [unlikeProfile]);
+    // In this context, it should trigger "unlikeListing" using the manager's ID
+    const handleUnlike = useCallback((managerUserId: string) => {
+        console.log(`EventsScreen: Unliking listing associated with manager ${managerUserId}`);
+        unlikeListing(managerUserId); // Call the listing unliking function from context
+    }, [unlikeListing]);
 
     // Define what happens when the 'Heart' (Like) button is pressed
-    // On this screen, it doesn't make sense to "like" again, so it does nothing.
-    const handleAlreadyLiked = useCallback((profileUserId: string) => {
-        console.log(`EventsScreen: Profile ${profileUserId} already liked.`);
-        // Do nothing, or maybe show a toast "Already liked"
+    // On this screen, the listing is already liked, so we do nothing or show a message.
+    const handleAlreadyLiked = useCallback((managerUserId: string) => {
+        console.log(`EventsScreen: Listing associated with manager ${managerUserId} already liked.`);
+        // You could optionally show a toast message here
+        // Toast.show({ type: 'info', text1: 'Already in your liked list' });
     }, []);
 
-    // Render item function for FlatList
-    const renderProfileCard = ({ item }: { item: BusinessProfile }) => (
+    // Render item function for FlatList - now renders BusinessListing
+    const renderListingCard = ({ item }: { item: BusinessListing }) => ( // Use BusinessListing type
         <View style={styles.cardWrapper}>
-             {/*
-                NOTE: BusinessProfileCard might need height adjustments
-                when used in a list compared to the full-screen Discover view.
-                The fixed height in styles.cardWrapper helps manage this.
-            */}
-            <BusinessProfileCard
-                profile={item}
+            {/* Renders the BusinessProfileCard, passing the listing data */}
+            <BusinessProfileCard // Use the card component
+                listing={item} // Pass the individual listing data via 'listing' prop
                 // Pass the unlike handler to the 'dismiss' action prop
-                onDismissBusiness={handleUnlike}
-                 // Pass the dummy handler to the 'like' action prop
-                onLikeBusiness={handleAlreadyLiked}
+                // Ensure manager_user_id exists on the item (it should from BusinessListing type)
+                onDismissBusiness={() => handleUnlike(item.manager_user_id)}
+                // Pass the dummy handler to the 'like' action prop
+                onLikeBusiness={() => handleAlreadyLiked(item.manager_user_id)}
             />
         </View>
     );
 
-    // Loading State
-    if (isLoadingProfiles && likedProfilesData.length === 0) {
-        // Show loader only if data is truly empty during load
+    // Loading State - Check using the correct loading flag and data array
+    if (isLoadingListings && (!likedListingsData || likedListingsData.length === 0)) {
         return (
             <SafeAreaView style={styles.centered}>
                 <ActivityIndicator size="large" color="#FF6347" />
@@ -64,11 +64,12 @@ const EventsScreen: React.FC = () => {
         );
     }
 
-    // Empty State
-    if (!isLoadingProfiles && likedProfilesData.length === 0) {
+    // Empty State - Check using the correct loading flag and data array
+    if (!isLoadingListings && (!likedListingsData || likedListingsData.length === 0)) {
         return (
             <SafeAreaView style={styles.centered}>
-                <Text style={styles.emptyText}>You haven't liked any profiles yet!</Text>
+                {/* Updated empty state text */}
+                <Text style={styles.emptyText}>You haven't liked any listings yet!</Text>
                 <Text style={styles.emptySubText}>Go to the Discover tab to find businesses.</Text>
             </SafeAreaView>
         );
@@ -78,13 +79,15 @@ const EventsScreen: React.FC = () => {
     return (
         <SafeAreaView style={styles.container}>
             <FlatList
-                data={likedProfilesData}
-                renderItem={renderProfileCard}
-                keyExtractor={(item) => item.user_id}
+                // Use likedListingsData as the data source
+                data={likedListingsData || []} // Provide fallback for safety
+                renderItem={renderListingCard} // Use the correct render function
+                // Use the unique ID of the listing itself as the key
+                keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.listContentContainer}
                 // Optional: Add pull-to-refresh functionality
-                // refreshing={isLoadingProfiles} // Show refresh indicator while loading
-                // onRefresh={fetchDiscoveryData} // Call fetch function on pull
+                refreshing={isLoadingListings} // Use the correct loading state
+                onRefresh={fetchDiscoveryData} // Call the function to re-fetch all data
             />
         </SafeAreaView>
     );
@@ -92,16 +95,17 @@ const EventsScreen: React.FC = () => {
 
 const { height } = Dimensions.get('window');
 
+// Styles remain largely the same
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f0f0f0', // Background for the whole screen
+        backgroundColor: '#f0f0f0',
     },
     centered: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 20, // Add padding for text
+        paddingHorizontal: 20,
     },
     emptyText: {
         fontSize: 18,
@@ -110,22 +114,21 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 8,
     },
-     emptySubText: {
+    emptySubText: {
         fontSize: 14,
         color: '#777',
         textAlign: 'center',
     },
     listContentContainer: {
-        paddingVertical: 10, // Padding at the top/bottom of the scrollable list
-        paddingHorizontal: 10, // Padding on the sides of the scrollable list
+        paddingVertical: 10,
+        paddingHorizontal: 10,
     },
     cardWrapper: {
-        marginBottom: 20, // Space between cards
-        height: height * 0.75, // *** Adjust height as needed for list view ***
-                               // Card might need less height than in DiscoverScreen
-                               // Or set a fixed height e.g., 500
-        // You might need to tweak this value based on BusinessProfileCard's internal layout
+        marginBottom: 20,
+        height: height * 0.75, // Adjust height as needed
+        // Ensure this height works well with BusinessProfileCard's internal layout
     },
 });
 
+// Export the component (still named EventsScreen for now)
 export default EventsScreen;

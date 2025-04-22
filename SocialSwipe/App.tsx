@@ -1,4 +1,4 @@
-// App.tsx (Updated to use actual EventsScreen)
+// App.tsx (Updated for CreateBusinessProfileScreen route name and simplified AuthContext)
 
 // IMPORTANT: react-native-gesture-handler import must be at the very top
 import 'react-native-get-random-values';
@@ -13,7 +13,7 @@ import Toast from 'react-native-toast-message'; // Ensure Toast is configured (u
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Import Contexts & Providers
-import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext'; // Using simplified AuthContext
 import { DiscoveryProvider } from './src/contexts/DiscoveryContext'; // Adjust path if needed
 
 // --- Import Screens ---
@@ -29,47 +29,49 @@ import EventsScreen from './src/pages/EventsScreen'; // *** ADDED: Import the ac
 // --- Import Icons ---
 import { Ionicons } from '@expo/vector-icons';
 
-// --- Type Definitions for Navigation --- (Keep as is)
+// --- Type Definitions for Navigation ---
 
 type AuthStackParamList = {
     Login: undefined;
     SignUp: undefined;
 };
 
+// Note: OnboardingStackParamList might need review depending on how you use it now
 type OnboardingStackParamList = {
     CreateProfile: undefined;
-    CreateBusinessProfile: undefined;
+    CreateBusinessProfileScreen: undefined; // <-- CHANGED name here if OnboardingStack is used for this too
 };
 
 type MainTabParamList = {
     DiscoverTab: undefined;
-    EventsTab: undefined; // Represents the "Liked Profiles" tab now
+    EventsTab: undefined;
     ProfileTab: undefined;
-    NotificationsTab: undefined; // Keep placeholder or replace if needed
+    NotificationsTab: undefined;
 };
 
 type RootStackParamList = {
     Main: NavigatorScreenParams<MainTabParamList>;
     EditProfile: undefined;
     CreateProfile: undefined;
-    CreateBusinessProfile: undefined;
+    // --- CHANGED Route Name Here ---
+    CreateBusinessProfileScreen: undefined; // <<< Was 'CreateBusinessProfile'
 };
 // --- End Type Definitions ---
 
 
-// --- Create Navigators --- (Keep as is)
+// --- Create Navigators ---
 const AuthStackNav = createNativeStackNavigator<AuthStackParamList>();
+// Update OnboardingStackParamList if CreateBusinessProfileScreen replaces CreateBusinessProfile here
 const OnboardingStackNav = createNativeStackNavigator<OnboardingStackParamList>();
 const MainTabNav = createBottomTabNavigator<MainTabParamList>();
 const RootStackNav = createNativeStackNavigator<RootStackParamList>();
 
 
 // --- Placeholder Screens ---
-// *** REMOVED placeholder EventsScreen function ***
-function NotificationsScreen() { return <View style={styles.screen}><Text>Notifications Screen</Text></View>; } // Keep placeholder or replace
+function NotificationsScreen() { return <View style={styles.screen}><Text>Notifications Screen</Text></View>; }
 
 
-// --- Navigator Components --- (Keep as is)
+// --- Navigator Components ---
 
 function AuthStack() {
     return (
@@ -80,13 +82,15 @@ function AuthStack() {
     );
 }
 
-// OnboardingStack definition remains, useful for manual navigation
-function OnboardingStack({ initialRouteName }: { initialRouteName: keyof OnboardingStackParamList }) {
+// OnboardingStack definition - review if still needed or how it's used
+// If you navigate to this stack, ensure the route names match what you navigate with
+function OnboardingStack({ initialRouteName }: { initialRouteName?: keyof OnboardingStackParamList }) { // Made initialRouteName optional
     const screenOptions: NativeStackNavigationOptions = {
         headerShown: true,
         headerBackVisible: false,
         gestureEnabled: false,
     };
+    // Default route if none provided, adjust if needed
     const finalInitialRoute = initialRouteName || 'CreateProfile';
 
     return (
@@ -99,8 +103,9 @@ function OnboardingStack({ initialRouteName }: { initialRouteName: keyof Onboard
                 component={CreateProfile}
                 options={{ title: 'Create Personal Profile' }}
             />
+            {/* Ensure this route name is correct if navigating to OnboardingStack */}
             <OnboardingStackNav.Screen
-                name="CreateBusinessProfile"
+                name="CreateBusinessProfileScreen" // <<< CHANGED name here to match RootStack potentially
                 component={CreateBusinessProfileScreen}
                 options={{ title: 'Create Business Profile' }}
             />
@@ -110,68 +115,63 @@ function OnboardingStack({ initialRouteName }: { initialRouteName: keyof Onboard
 
 
 function MainTabs() {
-    // TODO: Add screenOptions for icons, colors etc. to MainTabNav.Navigator
     return (
         <MainTabNav.Navigator
-            screenOptions={{
-                // Example: Add active/inactive tint colors if desired
-                // tabBarActiveTintColor: '#FF6347',
-                // tabBarInactiveTintColor: 'gray',
-            }}
+            screenOptions={({ route }) => ({ // Example: Adding icons using screenOptions function
+                headerShown: false, // Hide header for tabs, RootStack can handle main header if needed
+                tabBarActiveTintColor: '#FF6347',
+                tabBarInactiveTintColor: 'gray',
+                tabBarIcon: ({ focused, color, size }) => {
+                  let iconName: keyof typeof Ionicons.glyphMap = 'alert-circle-outline'; // Default icon
+
+                  if (route.name === 'DiscoverTab') {
+                    iconName = focused ? 'search' : 'search-outline';
+                  } else if (route.name === 'EventsTab') {
+                    iconName = focused ? 'heart' : 'heart-outline';
+                  } else if (route.name === 'ProfileTab') {
+                    iconName = focused ? 'person' : 'person-outline';
+                  } else if (route.name === 'NotificationsTab') {
+                    iconName = focused ? 'notifications' : 'notifications-outline';
+                  }
+                  return <Ionicons name={iconName} size={size} color={color} />;
+                },
+            })}
         >
             <MainTabNav.Screen
                 name="DiscoverTab"
                 component={DiscoverScreen}
-                options={{
-                    title: 'Discover',
-                    tabBarIcon: ({ color, size }) => ( // Example Icon
-                      <Ionicons name="search-outline" color={color} size={size} />
-                    ),
-                 }}
+                options={{ title: 'Discover' }}
             />
             <MainTabNav.Screen
                 name="EventsTab"
-                component={EventsScreen} // *** UPDATED: Use imported EventsScreen ***
-                options={{
-                    title: 'Liked Profiles', // *** UPDATED: Changed title ***
-                    tabBarIcon: ({ color, size }) => ( // Example Icon
-                      <Ionicons name="heart-outline" color={color} size={size} />
-                    ),
-                }}
-             />
+                component={EventsScreen}
+                options={{ title: 'Liked Profiles' }}
+            />
             <MainTabNav.Screen
                 name="ProfileTab"
-                component={ProfileScreen}
-                options={{
-                    title: 'Profile',
-                    tabBarIcon: ({ color, size }) => ( // Example Icon
-                      <Ionicons name="person-outline" color={color} size={size} />
-                    ),
-                 }}
-             />
+                component={ProfileScreen} // This screen handles the profile view / create prompt
+                options={{ title: 'Profile' }}
+            />
             <MainTabNav.Screen
                 name="NotificationsTab"
                 component={NotificationsScreen} // Placeholder
-                options={{
-                    title: 'Notifications',
-                     tabBarIcon: ({ color, size }) => ( // Example Icon
-                      <Ionicons name="notifications-outline" color={color} size={size} />
-                    ),
-                 }}
+                options={{ title: 'Notifications' }}
             />
         </MainTabNav.Navigator>
     );
 }
 
 
-function RootStack() { // Keep as is
+function RootStack() { // This is the main navigator after login
     return (
         <RootStackNav.Navigator>
+            {/* Main screen with bottom tabs */}
             <RootStackNav.Screen
                 name="Main"
                 component={MainTabs}
-                options={{ headerShown: false }}
+                options={{ headerShown: false }} // Tabs handle their own titles/headers usually
             />
+            {/* Screens presented MODALLY or pushing OVER the tabs */}
             <RootStackNav.Screen
                 name="EditProfile"
                 component={EditProfileScreen}
@@ -182,7 +182,7 @@ function RootStack() { // Keep as is
                 }}
             />
             <RootStackNav.Screen
-                name="CreateProfile"
+                name="CreateProfile" // Route for personal profile creation
                 component={CreateProfile}
                 options={{
                     title: 'Create Personal Profile',
@@ -190,8 +190,9 @@ function RootStack() { // Keep as is
                     headerBackTitleVisible: false,
                 }}
             />
+             {/* --- SCREEN NAME EDITED HERE --- */}
             <RootStackNav.Screen
-                name="CreateBusinessProfile"
+                name="CreateBusinessProfileScreen" // <<< Was 'CreateBusinessProfile'
                 component={CreateBusinessProfileScreen}
                 options={{
                     title: 'Create Business Profile',
@@ -204,34 +205,37 @@ function RootStack() { // Keep as is
 }
 
 
-// --- Component to Choose Navigator Based on Auth State --- (Keep as is)
+// --- Component to Choose Navigator Based on Auth State --- (MODIFIED)
 function AppContent() {
-    const { session, profile, loadingAuth, loadingProfile } = useAuth();
+    // Use the simplified AuthContext hook
+    const { session, loadingAuth } = useAuth(); // Removed profile, loadingProfile
 
-    // console.log("--- AppContent Render ---"); // Keep logs if helpful
+    // console.log("--- AppContent Render ---");
     // console.log("Session exists:", !!session);
-    // console.log("Profile exists:", !!profile);
     // console.log("Loading Auth:", loadingAuth);
-    // console.log("Loading Profile:", loadingProfile);
 
-    if (loadingAuth || (session && loadingProfile)) {
-        // console.log(`AppContent: Returning Loading Indicator (Auth: ${loadingAuth}, Profile: ${loadingProfile})`);
+    // Now only wait for authentication loading
+    if (loadingAuth) {
+        // console.log(`AppContent: Returning Loading Indicator (Auth: ${loadingAuth})`);
         return ( <View style={styles.screen}><ActivityIndicator size="large" color="#FF6347" /></View> );
     }
 
+    // Decide navigator based only on session existence
     if (session && session.user) {
         // console.log("AppContent: Returning RootStack");
+        // User is logged in, show the main app stack (which includes profile checks internally)
         return <RootStack />;
     } else {
         // console.log("AppContent: Returning AuthStack");
+        // No user session, show the login/signup stack
         return <AuthStack />;
     }
 }
 // --- End AppContent ---
 
 
-// --- Main App Component ---
-export default function App() { // Keep as is
+// --- Main App Component --- (Unchanged)
+export default function App() {
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
             <SafeAreaProvider>
@@ -249,7 +253,7 @@ export default function App() { // Keep as is
 }
 // --- End App ---
 
-// --- Basic Styles --- (Keep as is)
+// --- Basic Styles --- (Unchanged)
 const styles = StyleSheet.create({
     screen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0', },
 });
