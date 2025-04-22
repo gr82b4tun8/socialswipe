@@ -1,4 +1,4 @@
-// src/contexts/DiscoveryContext.tsx (MODIFIED to use business_listings)
+// src/contexts/DiscoveryContext.tsx (MODIFIED to use listing.id for likes)
 import React, {
     createContext,
     useContext,
@@ -14,11 +14,9 @@ import Toast from 'react-native-toast-message';
 
 // --- Define Core Types ---
 
-// Defines the structure of your business listing data from the 'business_listings' table
-// Ensure this matches your actual table schema.
 export interface BusinessListing {
-  id: string; // Unique ID of the listing itself
-  manager_user_id: string; // ID of the user who manages this listing (links to auth.users.id)
+  id: string; // <<< PRIMARY KEY OF THE LISTING - Used for liking
+  manager_user_id: string; // ID of the user who manages this listing
   business_name: string;
   category: string;
   description?: string | null;
@@ -28,33 +26,33 @@ export interface BusinessListing {
   address_postal_code?: string | null;
   address_country?: string | null;
   phone_number?: string | null;
-  listing_photos?: string[] | null; // Array of photo URLs/paths from Storage
+  listing_photos?: string[] | null;
   status?: string;
   created_at?: string;
   updated_at?: string;
-  // Add any other relevant fields from your business_listings table
 }
 
-// Represents the current user's interaction data fetched from 'profile_likes'
-// Assuming 'profile_likes' stores the manager_user_id of the liked listing
-export interface UserInteractionData { // Renamed for clarity
+// Represents the current user's interaction data
+export interface UserInteractionData {
   user_id: string; // The current user's ID
-  liked_manager_user_ids: string[]; // List of manager_user_ids the user has liked
+  // --- CHANGED --- store liked LISTING IDs, not manager IDs
+  liked_listing_ids: string[];
 }
 
-// --- Define Context Shape --- (Updated types)
+// --- Define Context Shape ---
 interface DiscoveryContextType {
-    allListings: BusinessListing[]; // Renamed from allProfiles
-    currentListing: BusinessListing | null; // Renamed from currentProfile
-    likedListingsData: BusinessListing[]; // Renamed from likedProfilesData
-    userInteractionData: UserInteractionData | null; // Renamed from userProfileData
-    isLoadingListings: boolean; // Renamed from isLoadingProfiles
+    allListings: BusinessListing[];
+    currentListing: BusinessListing | null;
+    likedListingsData: BusinessListing[]; // Full data for liked listings
+    userInteractionData: UserInteractionData | null; // Contains liked_listing_ids
+    isLoadingListings: boolean;
     fetchDiscoveryData: () => Promise<void>;
-    likeListing: (managerUserId: string) => Promise<void>; // Renamed from likeProfile
-    dismissListing: (managerUserId: string) => Promise<void>; // Renamed from dismissProfile
-    unlikeListing: (managerUserId: string) => Promise<void>; // Renamed from unlikeProfile
-    getNextListing: () => void; // Renamed from getNextProfile
-    reloadListings: () => void; // Renamed from reloadProfiles
+    // --- CHANGED --- Functions now operate on listingId
+    likeListing: (listingId: string) => Promise<void>;
+    dismissListing: (listingId: string) => Promise<void>; // Dismiss operates on the currently shown listing ID
+    unlikeListing: (listingId: string) => Promise<void>;
+    getNextListing: () => void;
+    reloadListings: () => void;
     clearDiscoveryState: () => void;
 }
 
@@ -63,7 +61,6 @@ const DiscoveryContext = createContext<DiscoveryContextType | undefined>(undefin
 
 // --- Utility: Shuffle Array (Fisher-Yates) --- (Unchanged)
 function shuffleArray<T>(array: T[]): T[] {
-    // ... (shuffle logic remains the same) ...
     let currentIndex = array.length, randomIndex;
     const newArray = [...array];
     while (currentIndex !== 0) {
@@ -79,18 +76,18 @@ function shuffleArray<T>(array: T[]): T[] {
 // --- Create Provider Component ---
 export const DiscoveryProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { session } = useAuth();
-    // --- State variables using Listing-related names and types ---
+    // --- State variables ---
     const [allListings, setAllListings] = useState<BusinessListing[]>([]);
     const [displayableListings, setDisplayableListings] = useState<BusinessListing[]>([]);
     const [currentListing, setCurrentListing] = useState<BusinessListing | null>(null);
-    const [likedListingsData, setLikedListingsData] = useState<BusinessListing[]>([]);
-    const [userInteractionData, setUserInteractionData] = useState<UserInteractionData | null>(null);
+    const [likedListingsData, setLikedListingsData] = useState<BusinessListing[]>([]); // Stores full BusinessListing objects that are liked
+    const [userInteractionData, setUserInteractionData] = useState<UserInteractionData | null>(null); // Stores liked listing IDs
     const [isLoadingListings, setIsLoadingListings] = useState<boolean>(false);
     const [hasFetchedInitial, setHasFetchedInitial] = useState(false);
 
     // Toast helper (Unchanged)
     const showToast = (options: { title?: string; description: string; type?: 'success' | 'error' | 'info' }) => {
-       Toast.show({ /* ... toast options ... */ });
+       Toast.show({ type: options.type || 'info', text1: options.title, text2: options.description });
     };
 
     // --- Core Logic ---
@@ -119,40 +116,39 @@ export const DiscoveryProvider: React.FC<{ children: ReactNode }> = ({ children 
         setHasFetchedInitial(true);
 
         try {
-            // --- Step 1: Fetch IDs of managers liked BY the current user ---
-            // *** ASSUMPTION: 'profile_likes' stores the manager_user_id of the liked listing ***
-            console.log("DiscoveryContext: 1. Fetching user's liked manager IDs...");
+            // --- Step 1: Fetch IDs of LISTINGS liked BY the current user ---
+            console.log("DiscoveryContext: 1. Fetching user's liked listing IDs...");
             const { data: likedIdsData, error: likedIdsError } = await supabase
-                .from('profile_likes') // <<< Keep table name or update if changed
-                .select('liked_listing_id') // <<< Column storing the ID of the liked user/manager
+                .from('profile_likes')
+                // --- CHANGED --- Select the correct column
+                .select('liked_listing_id')
                 .eq('liker_user_id', userId);
 
             if (likedIdsError) {
-                console.error("DiscoveryContext: Error fetching liked manager IDs:", likedIdsError);
-                if (likedIdsError.code === '42P01') { /* ... handle table not found ... */ }
+                console.error("DiscoveryContext: Error fetching liked listing IDs:", likedIdsError);
+                if (likedIdsError.code === '42P01') { /* ... */ }
                 throw likedIdsError;
             }
 
-            // Extract the manager IDs the user has liked
-            const likedManagerIds = likedIdsData?.map(like => like.liked_listing_id) || [];
-            // Update userInteractionData state
-            setUserInteractionData({ user_id: userId, liked_manager_user_ids: likedManagerIds });
-            console.log("DiscoveryContext: 2. User's liked manager IDs fetched:", likedManagerIds);
+            // Extract the LISTING IDs the user has liked
+            // --- CHANGED --- Use correct map property and variable name
+            const likedListingIds = likedIdsData?.map(like => like.liked_listing_id) || [];
+            // Update userInteractionData state with liked LISTING IDs
+            // --- CHANGED --- Use correct property name
+            setUserInteractionData({ user_id: userId, liked_listing_ids: likedListingIds });
+            console.log("DiscoveryContext: 2. User's liked listing IDs fetched:", likedListingIds);
 
             // --- Step 2: Fetch all relevant business listings ---
             console.log("DiscoveryContext: 3. Attempting to fetch all business listings...");
             const { data: businessListingsData, error: listingsError } = await supabase
-                .from('business_listings') // <<<--- CHANGED TABLE NAME
-                .select('*'); // Select columns matching BusinessListing interface
-                // Removed: .eq('profile_type', 'business'); // No longer needed
+                .from('business_listings')
+                .select('*');
 
             console.log("DiscoveryContext: 4. Business listings fetch completed.");
 
             if (listingsError) {
                 console.error("DiscoveryContext: Error fetching business listings:", listingsError);
-                 if (listingsError.code === '42P01') {
-                     showToast({ title: "Database Error", description: "Table 'business_listings' not found.", type: 'error'});
-                 }
+                if (listingsError.code === '42P01') { /* ... */ }
                 throw listingsError;
             }
 
@@ -161,20 +157,22 @@ export const DiscoveryProvider: React.FC<{ children: ReactNode }> = ({ children 
             const allFetchedListings: BusinessListing[] = businessListingsData || [];
             setAllListings(allFetchedListings); // Store the raw master list
 
-            // Filter out user's own listings and listings already liked
+            // Filter out user's own listings and listings already liked (by LISTING ID)
             const filteredListings = allFetchedListings.filter(listing =>
                 listing.manager_user_id !== userId && // Don't show user's own listings
-                !likedManagerIds.includes(listing.manager_user_id) // Don't show listings managed by users they already liked
+                // --- CHANGED --- Filter based on listing.id and likedListingIds
+                !likedListingIds.includes(listing.id)
             );
 
             const shuffled = shuffleArray(filteredListings);
             setDisplayableListings(shuffled);
-            setCurrentListing(shuffled[0] || null); // Use renamed state setter
+            setCurrentListing(shuffled[0] || null);
 
             // --- Step 4: Populate likedListingsData ---
-            // Filter the master list to get full data for listings managed by liked users
-            const likedFullData = allFetchedListings.filter(listing => likedManagerIds.includes(listing.manager_user_id));
-            setLikedListingsData(likedFullData); // Use renamed state setter
+            // Filter the master list to get full data for listings that are liked (by LISTING ID)
+             // --- CHANGED --- Filter based on listing.id and likedListingIds
+            const likedFullData = allFetchedListings.filter(listing => likedListingIds.includes(listing.id));
+            setLikedListingsData(likedFullData);
             console.log(`DiscoveryContext: Populated likedListingsData with ${likedFullData.length} listings.`);
 
             console.log(`DiscoveryContext: Fetched ${allFetchedListings.length} total listings, ${shuffled.length} initially displayable.`);
@@ -182,16 +180,14 @@ export const DiscoveryProvider: React.FC<{ children: ReactNode }> = ({ children 
 
         } catch (error: any) {
             console.error("DiscoveryContext: Error caught in fetchDiscoveryData try block:", error);
-            if (error.code !== '42P01') {
-                showToast({ title: "Error", description: `Failed to load discovery data: ${error.message || 'Unknown error'}`, type: 'error' });
-            }
+            if (error.code !== '42P01') { /* ... */ }
         } finally {
             console.log("DiscoveryContext: fetchDiscoveryData FINALLY block. Setting isLoadingListings to false.");
-            setIsLoadingListings(false); // Use renamed state setter
+            setIsLoadingListings(false);
         }
     }, [session, clearDiscoveryState]);
 
-    // useEffect triggers fetchDiscoveryData based on session (Unchanged logic)
+    // useEffect (Unchanged logic)
     useEffect(() => {
         if (session && !hasFetchedInitial) {
              fetchDiscoveryData();
@@ -201,164 +197,183 @@ export const DiscoveryProvider: React.FC<{ children: ReactNode }> = ({ children 
     }, [session, hasFetchedInitial, fetchDiscoveryData, clearDiscoveryState]);
 
 
-    const getNextListing = useCallback(() => { // Renamed function
+    // getNextListing (Unchanged logic)
+    const getNextListing = useCallback(() => {
         setDisplayableListings(prev => {
             const nextListings = prev.slice(1);
-            setCurrentListing(nextListings[0] || null); // Update currentListing
-             if (nextListings.length === 0) {
-                 console.log("DiscoveryContext: Reached end of displayable listings list.");
-             }
+            setCurrentListing(nextListings[0] || null);
+             if (nextListings.length === 0) { /* ... */ }
             return nextListings;
         });
     }, []);
 
 
-    const reloadListings = useCallback(() => { // Renamed function
-        if (!userInteractionData || !session?.user?.id) {
-            showToast({ title: "Error", description: "Cannot reload without user data.", type: 'error' });
-            return;
-        }
+    const reloadListings = useCallback(() => {
+        if (!userInteractionData || !session?.user?.id) { /* ... */ return; }
         console.log("DiscoveryContext: Reloading listings...");
-        setIsLoadingListings(true); // Use renamed state setter
+        setIsLoadingListings(true);
 
-        // Filter the master list based on current user and updated liked IDs
+        // Filter the master list based on current user and updated liked LISTING IDs
          const filteredForReload = allListings.filter(listing =>
-            listing.manager_user_id !== session.user.id && // Exclude self
-            !userInteractionData.liked_manager_user_ids.includes(listing.manager_user_id) // Exclude liked managers
-        );
+             listing.manager_user_id !== session.user!.id &&
+             // --- CHANGED --- Filter based on listing.id
+             !userInteractionData.liked_listing_ids.includes(listing.id)
+         );
 
         const shuffled = shuffleArray(filteredForReload);
         setDisplayableListings(shuffled);
-        setCurrentListing(shuffled[0] || null); // Use renamed state setter
+        setCurrentListing(shuffled[0] || null);
 
         console.log(`DiscoveryContext: Reloaded ${shuffled.length} displayable listings.`);
-        // Short delay before setting loading false for smoother UI transition
-        setTimeout(() => setIsLoadingListings(false), 50); // Use renamed state setter
+        setTimeout(() => setIsLoadingListings(false), 50);
 
     }, [allListings, userInteractionData, session?.user?.id]);
 
 
-    // --- Listing Actions (Targeting profile_likes table) ---
+    // --- Listing Actions (Targeting profile_likes table with listing IDs) ---
 
-    // Renamed function and parameter for clarity
-    const likeListing = useCallback(async (managerUserId: string) => {
-        if (!userInteractionData || !session?.user?.id) { showToast({ title: "Error", description: "Please log in to like listings.", type: 'error' }); return; }
+    // --- CHANGED --- Accepts listingId instead of managerUserId
+    const likeListing = useCallback(async (listingId: string) => {
+        if (!userInteractionData || !session?.user?.id) { /* ... */ return; }
 
-        // Find the first listing associated with the manager ID to get the business name for the toast
-        const listingToLike = allListings.find(l => l.manager_user_id === managerUserId);
-        const displayName = listingToLike?.business_name || 'this business'; // Fallback name
+        // Find the listing being liked for the display name
+        const listingToLike = allListings.find(l => l.id === listingId);
+        const displayName = listingToLike?.business_name || 'this listing'; // Fallback name
 
-        if (userInteractionData.liked_manager_user_ids.includes(managerUserId)) {
+        // --- CHANGED --- Check liked_listing_ids
+        if (userInteractionData.liked_listing_ids.includes(listingId)) {
             showToast({ title: "Already Liked", description: `You already liked ${displayName}.`, type: 'info' });
-            getNextListing(); // Use renamed function
-            return;
+            // getNextListing(); // Decide if you want to advance if already liked
+            return; // Don't proceed if already liked
         }
 
-        setIsLoadingListings(true); // Use renamed state setter
+        // setIsLoadingListings(true); // Optional: set loading for like action
         const likerId = session.user.id;
 
         try {
-            console.log(`DiscoveryContext: Inserting like - Liker: ${likerId}, Liked Manager: ${managerUserId}`);
+             // --- CHANGED --- Log using listingId
+            console.log(`DiscoveryContext: Inserting like - Liker: ${likerId}, Liked Listing ID: ${listingId}`);
             const { error } = await supabase
-                .from('profile_likes') // Keep table name or update if changed
+                .from('profile_likes')
                 .insert({
                     liker_user_id: likerId,
-                    liked_listing_id: managerUserId // <<< Column storing the ID of the liked user/manager
+                    // --- CHANGED --- Insert liked_listing_id
+                    liked_listing_id: listingId
                 });
 
             if (error) {
-                if (error.code === '23505') {
-                    showToast({ title: "Already Liked", description: `You already liked ${displayName}.`, type: 'info' });
-                } else {
-                    throw error;
+                if (error.code === '23505') { // Handle potential duplicate error
+                    showToast({ title: "Already Liked", description: `Database confirms you already liked ${displayName}.`, type: 'info' });
+                     // Sync state if needed
+                    if (!userInteractionData.liked_listing_ids.includes(listingId)) {
+                        setUserInteractionData(prev => prev ? { ...prev, liked_listing_ids: [...prev.liked_listing_ids, listingId] } : null);
+                        if(listingToLike) setLikedListingsData(prev => [...prev, listingToLike]);
+                    }
+                } else if (error.code === '23503') { // Foreign Key violation
+                     console.error("Foreign Key Violation! Listing ID likely doesn't exist:", listingId, error);
+                     showToast({ title: "Error", description: `Cannot like listing: It may no longer exist.`, type: 'error' });
+                }
+                else {
+                    throw error; // Re-throw other errors
                 }
             } else {
-                // Update local state immediately for better UX
-                const newLikedIds = [...userInteractionData.liked_manager_user_ids, managerUserId];
-                setUserInteractionData(prev => prev ? { ...prev, liked_manager_user_ids: newLikedIds } : null);
-                // Add all listings managed by this liked user to likedListingsData
-                const newlyLikedListings = allListings.filter(l => l.manager_user_id === managerUserId);
-                setLikedListingsData(prev => [...prev, ...newlyLikedListings]);
+                // Success: Update local state immediately
+                // --- CHANGED --- Update liked_listing_ids
+                const newLikedIds = [...userInteractionData.liked_listing_ids, listingId];
+                setUserInteractionData(prev => prev ? { ...prev, liked_listing_ids: newLikedIds } : null);
+                // Add the specific liked listing to likedListingsData state if found
+                if(listingToLike) {
+                    setLikedListingsData(prev => [...prev, listingToLike]);
+                }
 
                 showToast({ title: "Liked!", description: `You liked ${displayName}.`, type: 'success' });
             }
-            getNextListing(); // Use renamed function
+             // --- CHANGED --- Advance only AFTER trying to like
+             getNextListing();
         } catch (error: any) {
-            console.error("DiscoveryContext: Failed to like listing:", error);
-            showToast({ title: "Error", description: `Could not save like: ${error.message}`, type: 'error' });
-        } finally {
-            setIsLoadingListings(false); // Use renamed state setter
-        }
-    }, [userInteractionData, session?.user?.id, allListings, getNextListing]);
-
-
-    // Renamed function and parameter for clarity
-    const dismissListing = useCallback(async (managerUserId: string) => {
-        if (!userInteractionData || !session?.user?.id) { showToast({ title: "Error", description: "Please log in.", type: 'error' }); return; }
-
-        console.log("DiscoveryContext: Dismissing listings for manager", managerUserId);
-        let setLoading = false; // Flag to track if loading state was set
-
-        // If the dismissed listing's manager was liked, unlike them first
-        if (userInteractionData.liked_manager_user_ids.includes(managerUserId)) {
-            setLoading = true;
-            setIsLoadingListings(true); // Use renamed state setter
-            console.log("DiscoveryContext: Dismissed manager was liked, removing like from profile_likes table.");
-            const likerId = session.user.id;
-
-            try {
-                const { error } = await supabase
-                    .from('profile_likes') // Keep table name or update if changed
-                    .delete()
-                    .eq('liker_user_id', likerId)
-                    .eq('liked_listing_id', managerUserId); // <<< Column storing the ID of the liked user/manager
-
-                if (error) throw error;
-
-                // Update local state after successful unlike
-                const newLikedIds = userInteractionData.liked_manager_user_ids.filter(id => id !== managerUserId);
-                setUserInteractionData(prev => prev ? { ...prev, liked_manager_user_ids: newLikedIds } : null);
-                setLikedListingsData(prev => prev.filter(l => l.manager_user_id !== managerUserId)); // Remove listings by this manager
-                 showToast({ description: "Removed from your liked list.", type: 'info' });
-
-            } catch (error: any) {
-                 console.error("DiscoveryContext: Failed to remove like during dismiss:", error);
-                 showToast({ title: "Error", description: `Could not remove like: ${error.message}`, type: 'error' });
-                 if(setLoading) setIsLoadingListings(false); // Use renamed state setter
-                 return; // Don't advance if delete failed
+            // Log error already handled if specific code not caught above
+            if (error.code !== '23505' && error.code !== '23503') {
+                console.error("DiscoveryContext: Failed to like listing:", error);
+                showToast({ title: "Error", description: `Could not save like: ${error.message}`, type: 'error' });
             }
-            // No finally block here for loading state, handle below
+        } finally {
+             // setIsLoadingListings(false); // Turn off loading if set
         }
-
-        // Always advance to the next listing after dismiss (whether like was removed or not)
-        getNextListing(); // Use renamed function
-        if(setLoading) setIsLoadingListings(false); // Stop loading if it was started for unlike
-
-    }, [userInteractionData, session?.user?.id, getNextListing]);
+    }, [userInteractionData, session?.user?.id, allListings, getNextListing]); // Dependencies updated
 
 
-    // Renamed function and parameter for clarity
-    const unlikeListing = useCallback(async (managerUserId: string) => {
-        if (!userInteractionData || !session?.user?.id) { showToast({ title: "Error", description: "Please log in.", type: 'error' }); return; }
-        if (!userInteractionData.liked_manager_user_ids.includes(managerUserId)) { return; } // Not liked
-
-        setIsLoadingListings(true); // Use renamed state setter
+    // --- CHANGED --- Accepts listingId instead of managerUserId
+    // Dismiss removes the current card and unlikes it *if* it was liked
+    const dismissListing = useCallback(async (listingId: string) => {
+        if (!userInteractionData || !session?.user?.id) { /* ... */ return; }
         const likerId = session.user.id;
 
+        console.log("DiscoveryContext: Dismissing listing with ID:", listingId);
+
+        // Optimistic UI: Advance to the next card immediately
+        getNextListing();
+
+        // Check if the dismissed listing was liked, and remove the like from DB asynchronously
+        // --- CHANGED --- Check liked_listing_ids
+        if (userInteractionData.liked_listing_ids.includes(listingId)) {
+            console.log("DiscoveryContext: Dismissed listing was liked, removing like from DB (async).");
+            try {
+                const { error } = await supabase
+                    .from('profile_likes')
+                    .delete()
+                    .eq('liker_user_id', likerId)
+                    // --- CHANGED --- Match liked_listing_id
+                    .eq('liked_listing_id', listingId);
+
+                if (error) throw error; // Log error below if delete fails
+
+                // Update local state AFTER successful delete
+                // --- CHANGED --- Update liked_listing_ids
+                const newLikedIds = userInteractionData.liked_listing_ids.filter(id => id !== listingId);
+                setUserInteractionData(prev => prev ? { ...prev, liked_listing_ids: newLikedIds } : null);
+                // --- CHANGED --- Remove from likedListingsData based on listing id
+                setLikedListingsData(prev => prev.filter(l => l.id !== listingId));
+                console.log("DiscoveryContext: Successfully removed prior like from local state for listing:", listingId);
+
+            } catch (error: any) {
+                console.error("DiscoveryContext: Failed to remove like during dismiss (background task):", error);
+                // Don't necessarily disrupt UI, but log it. State might be inconsistent until next fetch.
+            }
+        }
+    }, [userInteractionData, session?.user?.id, getNextListing]); // Dependencies updated
+
+
+    // --- CHANGED --- Accepts listingId instead of managerUserId
+    const unlikeListing = useCallback(async (listingId: string) => {
+        if (!userInteractionData || !session?.user?.id) { /* ... */ return; }
+        const likerId = session.user.id;
+
+        // --- CHANGED --- Check liked_listing_ids
+        if (!userInteractionData.liked_listing_ids.includes(listingId)) {
+             console.log("DiscoveryContext: Attempted to unlike a listing not in the liked list. ID:", listingId);
+             return; // Not liked, nothing to do
+        }
+
+        setIsLoadingListings(true); // Show loading for explicit unlike
+
         try {
-            console.log(`DiscoveryContext: Deleting like - Liker: ${likerId}, Liked Manager: ${managerUserId}`);
+             // --- CHANGED --- Log using listingId
+            console.log(`DiscoveryContext: Deleting like - Liker: ${likerId}, Liked Listing ID: ${listingId}`);
             const { error } = await supabase
-                .from('profile_likes') // Keep table name or update if changed
+                .from('profile_likes')
                 .delete()
                 .eq('liker_user_id', likerId)
-                .eq('liked_listing_id', managerUserId); // <<< Column storing the ID of the liked user/manager
+                 // --- CHANGED --- Match liked_listing_id
+                .eq('liked_listing_id', listingId);
 
             if (error) throw error;
 
-            // Update local state after successful unlike
-            const newLikedIds = userInteractionData.liked_manager_user_ids.filter(id => id !== managerUserId);
-            setUserInteractionData(prev => prev ? { ...prev, liked_manager_user_ids: newLikedIds } : null);
-            setLikedListingsData(prev => prev.filter(l => l.manager_user_id !== managerUserId)); // Remove listings by this manager
+            // Update local state AFTER successful delete
+             // --- CHANGED --- Update liked_listing_ids
+            const newLikedIds = userInteractionData.liked_listing_ids.filter(id => id !== listingId);
+            setUserInteractionData(prev => prev ? { ...prev, liked_listing_ids: newLikedIds } : null);
+             // --- CHANGED --- Remove from likedListingsData based on listing id
+            setLikedListingsData(prev => prev.filter(l => l.id !== listingId));
 
             showToast({ description: "Removed from your liked list.", type: 'success' });
 
@@ -366,11 +381,11 @@ export const DiscoveryProvider: React.FC<{ children: ReactNode }> = ({ children 
             console.error("DiscoveryContext: Failed to unlike listing:", error);
             showToast({ title: "Error", description: `Could not remove like: ${error.message}`, type: 'error' });
         } finally {
-            setIsLoadingListings(false); // Use renamed state setter
+            setIsLoadingListings(false);
         }
-    }, [userInteractionData, session?.user?.id]);
+    }, [userInteractionData, session?.user?.id]); // Dependencies updated
 
-    // --- Context Value --- (Updated names and types)
+    // --- Context Value --- (Ensure all functions use the updated signatures)
     const value = useMemo(() => ({
         allListings,
         currentListing,
@@ -378,9 +393,9 @@ export const DiscoveryProvider: React.FC<{ children: ReactNode }> = ({ children 
         userInteractionData,
         isLoadingListings,
         fetchDiscoveryData,
-        likeListing,
-        dismissListing,
-        unlikeListing,
+        likeListing,       // Now expects listingId
+        dismissListing,    // Now expects listingId
+        unlikeListing,     // Now expects listingId
         reloadListings,
         getNextListing,
         clearDiscoveryState,
@@ -397,7 +412,7 @@ export const DiscoveryProvider: React.FC<{ children: ReactNode }> = ({ children 
     );
 };
 
-// --- Custom Hook for Consuming Context --- (Updated return type)
+// --- Custom Hook for Consuming Context ---
 export const useDiscovery = (): DiscoveryContextType => {
     const context = useContext(DiscoveryContext);
     if (context === undefined) {

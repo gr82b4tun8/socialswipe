@@ -1,4 +1,4 @@
-// src/pages/EventsScreen.tsx (MODIFIED to display Liked Listings)
+// src/pages/EventsScreen.tsx (MODIFIED to use listing.id for unlike)
 
 import React, { useCallback } from 'react';
 import {
@@ -21,73 +21,70 @@ const EventsScreen: React.FC = () => {
         // Use the correct context variables related to listings
         likedListingsData,  // Array of liked BusinessListing objects
         isLoadingListings,  // Loading state for listings
-        unlikeListing,      // Function to unlike a listing (using manager_user_id)
+        // --- CHANGED --- unlikeListing now expects listing.id
+        unlikeListing,
         fetchDiscoveryData  // Function to potentially refresh all data
     } = useDiscovery();
 
-    // Define what happens when the 'X' (Dismiss) button is pressed on a card
-    // In this context, it should trigger "unlikeListing" using the manager's ID
-    const handleUnlike = useCallback((managerUserId: string) => {
-        console.log(`EventsScreen: Unliking listing associated with manager ${managerUserId}`);
-        unlikeListing(managerUserId); // Call the listing unliking function from context
+    // Define what happens when the 'X' (Dismiss/Unlike) button is pressed on a card
+    // --- CHANGED --- Accepts listingId and calls unlikeListing with it
+    const handleUnlike = useCallback((listingId: string) => {
+        console.log(`EventsScreen: Unliking listing with ID: ${listingId}`);
+        unlikeListing(listingId); // Call the listing unliking function from context
     }, [unlikeListing]);
 
     // Define what happens when the 'Heart' (Like) button is pressed
-    // On this screen, the listing is already liked, so we do nothing or show a message.
-    const handleAlreadyLiked = useCallback((managerUserId: string) => {
-        console.log(`EventsScreen: Listing associated with manager ${managerUserId} already liked.`);
+    // --- CHANGED --- Parameter changed to listingId for consistency
+    const handleAlreadyLiked = useCallback((listingId: string) => {
+        console.log(`EventsScreen: Listing ${listingId} already liked.`);
         // You could optionally show a toast message here
         // Toast.show({ type: 'info', text1: 'Already in your liked list' });
     }, []);
 
     // Render item function for FlatList - now renders BusinessListing
-    const renderListingCard = ({ item }: { item: BusinessListing }) => ( // Use BusinessListing type
+    const renderListingCard = ({ item }: { item: BusinessListing }) => (
         <View style={styles.cardWrapper}>
             {/* Renders the BusinessProfileCard, passing the listing data */}
             <BusinessProfileCard // Use the card component
                 listing={item} // Pass the individual listing data via 'listing' prop
-                // Pass the unlike handler to the 'dismiss' action prop
-                // Ensure manager_user_id exists on the item (it should from BusinessListing type)
-                onDismissBusiness={() => handleUnlike(item.manager_user_id)}
-                // Pass the dummy handler to the 'like' action prop
-                onLikeBusiness={() => handleAlreadyLiked(item.manager_user_id)}
+                // --- CHANGED --- Pass item.id to handlers
+                onDismissBusiness={() => handleUnlike(item.id)}
+                onLikeBusiness={() => handleAlreadyLiked(item.id)}
             />
         </View>
     );
 
     // Loading State - Check using the correct loading flag and data array
     if (isLoadingListings && (!likedListingsData || likedListingsData.length === 0)) {
-        return (
-            <SafeAreaView style={styles.centered}>
-                <ActivityIndicator size="large" color="#FF6347" />
-            </SafeAreaView>
-        );
+        // ... loading indicator ...
+         return (
+             <SafeAreaView style={styles.centered}>
+                 <ActivityIndicator size="large" color="#FF6347" />
+             </SafeAreaView>
+         );
     }
 
     // Empty State - Check using the correct loading flag and data array
     if (!isLoadingListings && (!likedListingsData || likedListingsData.length === 0)) {
-        return (
-            <SafeAreaView style={styles.centered}>
-                {/* Updated empty state text */}
-                <Text style={styles.emptyText}>You haven't liked any listings yet!</Text>
-                <Text style={styles.emptySubText}>Go to the Discover tab to find businesses.</Text>
-            </SafeAreaView>
-        );
+        // ... empty state message ...
+         return (
+             <SafeAreaView style={styles.centered}>
+                 <Text style={styles.emptyText}>You haven't liked any listings yet!</Text>
+                 <Text style={styles.emptySubText}>Go to the Discover tab to find businesses.</Text>
+             </SafeAreaView>
+         );
     }
 
     // Main List View
     return (
         <SafeAreaView style={styles.container}>
             <FlatList
-                // Use likedListingsData as the data source
-                data={likedListingsData || []} // Provide fallback for safety
-                renderItem={renderListingCard} // Use the correct render function
-                // Use the unique ID of the listing itself as the key
-                keyExtractor={(item) => item.id}
+                data={likedListingsData || []}
+                renderItem={renderListingCard}
+                keyExtractor={(item) => item.id} // Key extractor uses listing ID
                 contentContainerStyle={styles.listContentContainer}
-                // Optional: Add pull-to-refresh functionality
-                refreshing={isLoadingListings} // Use the correct loading state
-                onRefresh={fetchDiscoveryData} // Call the function to re-fetch all data
+                refreshing={isLoadingListings}
+                onRefresh={fetchDiscoveryData}
             />
         </SafeAreaView>
     );
@@ -126,9 +123,7 @@ const styles = StyleSheet.create({
     cardWrapper: {
         marginBottom: 20,
         height: height * 0.75, // Adjust height as needed
-        // Ensure this height works well with BusinessProfileCard's internal layout
     },
 });
 
-// Export the component (still named EventsScreen for now)
 export default EventsScreen;

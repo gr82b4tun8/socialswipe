@@ -1,4 +1,4 @@
-// src/screens/DiscoverScreen.tsx (CORRECTED)
+// src/screens/DiscoverScreen.tsx (FIXED to pass listing.id)
 
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Button } from 'react-native';
@@ -12,8 +12,8 @@ const DiscoverScreen: React.FC = () => {
     // *** Use the CORRECT names provided by the context ***
     const {
         currentListing,    // <-- Use currentListing
-        likeListing,       // <-- Use likeListing
-        dismissListing,    // <-- Use dismissListing
+        likeListing,       // <-- Use likeListing (expects listing.id)
+        dismissListing,    // <-- Use dismissListing (expects listing.id)
         isLoadingListings, // <-- Use isLoadingListings
         reloadListings,    // <-- Use reloadListings
     } = useDiscovery();
@@ -27,8 +27,8 @@ const DiscoverScreen: React.FC = () => {
         );
     }
 
-     // --- DEBUGGING: Add this log ---
-     console.log('DiscoverScreen Render:', { isLoadingListings, currentListing });
+     // --- DEBUGGING: Log ---
+     // console.log('DiscoverScreen Render:', { isLoadingListings, currentListing });
      // -----------------------------
 
     return (
@@ -39,9 +39,20 @@ const DiscoverScreen: React.FC = () => {
                     <View style={styles.cardContainer}>
                         <BusinessProfileCard
                             listing={currentListing} // Pass data via 'listing' prop
-                            // *** Use CORRECT function names and pass manager_user_id ***
-                            onLikeBusiness={() => likeListing(currentListing.manager_user_id)} // <-- Use likeListing
-                            onDismissBusiness={() => dismissListing(currentListing.manager_user_id)} // <-- Use dismissListing
+                            // --- FIX IMPLEMENTED BELOW ---
+                            // Pass the unique ID of the listing (currentListing.id)
+                            // to the like/dismiss functions from the context.
+                            onLikeBusiness={() => {
+                                // Optional log for debugging:
+                                console.log(`DiscoverScreen: Liking Listing ID: ${currentListing.id}`);
+                                likeListing(currentListing.id); // <-- CORRECT ID passed
+                            }}
+                            onDismissBusiness={() => {
+                                // Optional log for debugging:
+                                console.log(`DiscoverScreen: Dismissing Listing ID: ${currentListing.id}`);
+                                dismissListing(currentListing.id); // <-- CORRECT ID passed
+                            }}
+                            // --- END FIX ---
                         />
                     </View>
                 ) : (
@@ -89,7 +100,6 @@ const styles = StyleSheet.create({
         width: '90%',
         maxWidth: 400,
         height: '85%', // Adjust as needed
-        // marginBottom: 20, // Remove if action buttons are part of the card's flex layout
     },
     noContentContainer: {
         width: '90%',
@@ -124,8 +134,8 @@ const styles = StyleSheet.create({
     },
      reloadButtonContainer: {
         marginTop: 20,
-        width: '100%', // Ensure button container spans width for centering/styling
-        maxWidth: 250, // Optional: Constrain button width
+        width: '100%',
+        maxWidth: 250,
     },
     centered: {
         flex: 1,
