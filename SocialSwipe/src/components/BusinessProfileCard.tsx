@@ -1,5 +1,4 @@
-// BusinessProfileCard.tsx (MODIFIED to use BusinessListing data)
-
+// BusinessProfileCard.tsx
 import React, { useState } from 'react';
 import {
     View,
@@ -15,43 +14,24 @@ import {
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 
-// --- Define Business Listing Type ---
-// This interface should match the structure of your 'business_listings' table data
-// Ensure this matches the actual columns and types in your Supabase table.
+// --- Define Business Listing Type (Keep as is) ---
 export interface BusinessListing {
-  id: string; // Unique ID of the listing itself
-  manager_user_id: string; // ID of the user who manages this listing (links to auth.users.id)
-  business_name: string;
-  category: string;
-  description?: string | null;
-  address_street?: string | null;
-  address_city?: string | null;
-  address_state?: string | null;
-  address_postal_code?: string | null;
-  address_country?: string | null;
-  phone_number?: string | null;
-  listing_photos?: string[] | null; // Array of photo URLs/paths from Storage
-  status?: string; // Assuming you have a status field
-  created_at?: string;
-  updated_at?: string;
-  // Add any other relevant fields from your business_listings table
+  // ... (interface definition)
 }
 
-// --- Business Profile Card Props --- (Updated to use listing)
+// --- Business Profile Card Props (Keep as is) ---
 interface BusinessProfileCardProps {
-  listing: BusinessListing; // Renamed prop to 'listing' and use BusinessListing type
-  onLikeBusiness: (managerUserId: string) => void; // Pass the manager's user ID
-  onDismissBusiness: (managerUserId: string) => void; // Pass the manager's user ID
+  // ... (props definition)
 }
 
-// Enable LayoutAnimation for Android
+// Enable LayoutAnimation for Android (Keep as is)
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// --- Business Profile Card Component --- (Updated to use listing)
+// --- Business Profile Card Component ---
 const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
-    listing, // Use 'listing' prop
+    listing,
     onLikeBusiness,
     onDismissBusiness,
 }) => {
@@ -62,21 +42,16 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
         setShowDetails(!showDetails);
     };
 
-    // Use listing prop now
     if (!listing) {
-        return null; // Don't render if no listing data
+        return null;
     }
 
-    // Construct location string (City, State) using listing data
     const locationParts = [listing.address_city, listing.address_state].filter(Boolean);
     const formattedLocation = locationParts.join(', ');
 
-    // --- Image URL Selection (Using listing_photos) ---
-    // Use the first photo from the listing_photos array as the primary image
-    const primaryImageUrl = listing.listing_photos?.[0]; // Get the first URL, if available
-    const fallbackImageUrl = 'https://placehold.co/600x400/cccccc/ffffff?text=No+Image'; // Generic fallback
+    const primaryImageUrl = listing.listing_photos?.[0];
+    const fallbackImageUrl = 'https://placehold.co/600x400/cccccc/ffffff?text=No+Image';
 
-    // Construct full address using listing data
     const fullAddress = [
         listing.address_street,
         listing.address_city,
@@ -85,127 +60,112 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
         listing.address_country
     ].filter(Boolean).join(', ');
 
-    // Determine if details exist to show the toggle button using listing data
-    // Ensure these field names match your BusinessListing interface and table
     const hasDetailsToShow = listing.description || listing.phone_number || fullAddress || listing.category;
 
     return (
-        // Container for the static card + action buttons
+        // This container now IS the card visually. It fills the parent wrapper from BusinessCardStack.
         <View style={styles.container}>
-            {/* Main static card structure */}
-            <View style={styles.card}>
-                <ImageBackground
-                    // Use primaryImageUrl (from listing.listing_photos[0]) or fallback
-                    source={{ uri: primaryImageUrl || fallbackImageUrl }}
-                    style={styles.imageBackground}
-                    resizeMode="cover"
-                    onError={(error) => {
-                        // Updated log message using listing ID
-                        console.warn(`Image load error for listing ${listing.id} (URL: ${primaryImageUrl || fallbackImageUrl}): ${error.nativeEvent.error}`);
-                    }}
-                >
-                    {/* Gradient Overlay */}
-                    <View style={styles.gradientOverlay}>
-                        {/* Content inside overlay */}
-                        <View style={styles.contentOverlay}>
-                            <View style={styles.titleRow}>
-                                {/* Use listing.business_name */}
-                                <Text style={styles.title} numberOfLines={2}>{listing.business_name || 'Unnamed Business'}</Text>
-                            </View>
-
-                            {/* Location Info */}
-                            {formattedLocation ? (
-                                <View style={styles.infoRow}>
-                                    <Feather name="map-pin" size={14} color="#FFFFFFCC" style={styles.icon} />
-                                    <Text style={styles.infoText} numberOfLines={1}>
-                                        {formattedLocation}
-                                    </Text>
-                                </View>
-                            ) : null}
-
-                            {/* Category Badge */}
-                            {listing.category ? (
-                                <View style={styles.badgeRow}>
-                                    <View style={[styles.badge, styles.categoryBadge]}>
-                                        <Text style={styles.categoryBadgeText}>{listing.category}</Text>
-                                    </View>
-                                </View>
-                            ) : <View style={{ marginBottom: 15 }} /> /* Add margin if no badge */}
-
-
-                            {/* Details Toggle Section */}
-                            {hasDetailsToShow && (
-                                <View style={styles.detailsToggleSection}>
-                                    <TouchableOpacity onPress={toggleDetails} style={styles.detailsButton}>
-                                        <Text style={styles.detailsButtonText}>
-                                            {showDetails ? "Hide Details" : "Show Details"}
-                                        </Text>
-                                        <Feather
-                                            name={showDetails ? "chevron-up" : "chevron-down"}
-                                            size={20}
-                                            color="#FFFFFF"
-                                        />
-                                    </TouchableOpacity>
-                                </View>
-                            )}
+            {/* Removed the extra 'card' View. ImageBackground is now a direct child */}
+            <ImageBackground
+                source={{ uri: primaryImageUrl || fallbackImageUrl }}
+                style={styles.imageBackground} // Needs to specify how much space it takes
+                resizeMode="cover"
+                onError={(error) => {
+                    console.warn(`Image load error for listing ${listing.id} (URL: ${primaryImageUrl || fallbackImageUrl}): ${error.nativeEvent.error}`);
+                }}
+            >
+                {/* Content that overlays the image */}
+                <View style={styles.gradientOverlay}>
+                    <View style={styles.contentOverlay}>
+                        {/* Title Row */}
+                        <View style={styles.titleRow}>
+                            <Text style={styles.title} numberOfLines={2}>{listing.business_name || 'Unnamed Business'}</Text>
                         </View>
+
+                        {/* Location Info */}
+                        {formattedLocation ? (
+                            <View style={styles.infoRow}>
+                                <Feather name="map-pin" size={14} color="#FFFFFFCC" style={styles.icon} />
+                                <Text style={styles.infoText} numberOfLines={1}>
+                                    {formattedLocation}
+                                </Text>
+                            </View>
+                        ) : null}
+
+                        {/* Category Badge */}
+                        {listing.category ? (
+                            <View style={styles.badgeRow}>
+                                <View style={[styles.badge, styles.categoryBadge]}>
+                                    <Text style={styles.categoryBadgeText}>{listing.category}</Text>
+                                </View>
+                            </View>
+                        ) : <View style={{ marginBottom: 15 }} /> /* Add margin if no badge */}
+
+
+                        {/* Details Toggle Section */}
+                        {hasDetailsToShow && (
+                            <View style={styles.detailsToggleSection}>
+                                <TouchableOpacity onPress={toggleDetails} style={styles.detailsButton}>
+                                    <Text style={styles.detailsButtonText}>
+                                        {showDetails ? "Hide Details" : "Show Details"}
+                                    </Text>
+                                    <Feather
+                                        name={showDetails ? "chevron-up" : "chevron-down"}
+                                        size={20}
+                                        color="#FFFFFF"
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
-                </ImageBackground>
+                </View>
+            </ImageBackground>
 
-                {/* Collapsible Details Section */}
-                {showDetails && (
-                    <ScrollView style={styles.detailsContainer}>
-                        {/* Use listing.description */}
-                        {listing.description ? (
-                            <View style={styles.detailsBlock}>
-                                <Text style={styles.detailsHeading}>Description</Text>
-                                <Text style={styles.detailsDescription}>{listing.description}</Text>
+            {/* Collapsible Details Section - Appears BELOW the ImageBackground */}
+            {showDetails && (
+                <ScrollView style={styles.detailsContainer} // No changes needed here yet
+                    nestedScrollEnabled={true} // Good practice for ScrollViews inside ScrollViews/potentially animated views
+                >
+                    {/* Description */}
+                    {listing.description ? (
+                        <View style={styles.detailsBlock}>
+                            <Text style={styles.detailsHeading}>Description</Text>
+                            <Text style={styles.detailsDescription}>{listing.description}</Text>
+                        </View>
+                    ) : null }
+                    {/* Phone */}
+                    {listing.phone_number ? (
+                        <View style={styles.detailsBlock}>
+                            <Text style={styles.detailsHeading}>Phone</Text>
+                            <View style={styles.detailsInfoRow}>
+                                <Feather name="phone" size={16} color="#555" style={styles.iconDetails} />
+                                <Text style={styles.detailsInfoText}>{listing.phone_number}</Text>
                             </View>
-                        ) : null }
-
-                        {/* Use listing.phone_number */}
-                        {listing.phone_number ? (
-                            <View style={styles.detailsBlock}>
-                                <Text style={styles.detailsHeading}>Phone</Text>
-                                <View style={styles.detailsInfoRow}>
-                                    <Feather name="phone" size={16} color="#555" style={styles.iconDetails} />
-                                    <Text style={styles.detailsInfoText}>{listing.phone_number}</Text>
-                                </View>
+                        </View>
+                    ) : null }
+                    {/* Address */}
+                    {fullAddress ? (
+                        <View style={styles.detailsBlock}>
+                            <Text style={styles.detailsHeading}>Address</Text>
+                            <View style={styles.detailsInfoRow}>
+                                <Feather name="map-pin" size={16} color="#555" style={styles.iconDetails} />
+                                <Text style={styles.detailsInfoText}>{fullAddress}</Text>
                             </View>
-                        ) : null }
+                        </View>
+                    ) : null }
+                </ScrollView>
+            )}
 
-                        {/* Use fullAddress derived from listing */}
-                        {fullAddress ? (
-                            <View style={styles.detailsBlock}>
-                                <Text style={styles.detailsHeading}>Address</Text>
-                                <View style={styles.detailsInfoRow}>
-                                    <Feather name="map-pin" size={16} color="#555" style={styles.iconDetails} />
-                                    <Text style={styles.detailsInfoText}>{fullAddress}</Text>
-                                </View>
-                            </View>
-                        ) : null }
-
-                        {/* Optionally display other photos from listing.listing_photos here */}
-                        {/* {listing.listing_photos && listing.listing_photos.length > 1 && ( ... ) } */}
-
-                    </ScrollView>
-                )}
-            </View>
-
-            {/* Action Buttons */}
+            {/* Action Buttons - Remain at the bottom due to container's flex direction */}
             <View style={styles.actionButtonsContainer}>
                 <TouchableOpacity
                     style={[styles.actionButton, styles.skipButton]}
-                    // Pass manager's user ID for dismiss action
-                    // Ensure manager_user_id exists on your listing object
                     onPress={() => onDismissBusiness(listing.manager_user_id)}
                 >
                     <Ionicons name="close" size={32} color="#F15A6A" />
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.actionButton, styles.likeButton]}
-                    // Pass manager's user ID for like action
-                    // Ensure manager_user_id exists on your listing object
                     onPress={() => onLikeBusiness(listing.manager_user_id)}
                 >
                     <Ionicons name="heart" size={30} color="#FFFFFF" />
@@ -215,35 +175,35 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
     );
 };
 
-// --- Styles --- (Keep styles the same)
+// --- Styles ---
 const { height: screenHeight } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
-        justifyContent: 'space-between',
+        flex: 1, // Crucial: Makes this View fill its parent (the sized wrapper in CardStack)
+        borderRadius: 16, // Apply border radius here
+        overflow: 'hidden', // Clip children (ImageBackground, ScrollView) to the rounded corners
+        backgroundColor: '#1fb7f0', // Card background color
+        flexDirection: 'column', // Explicitly column
+        justifyContent: 'space-between', // Push buttons to bottom if details aren't shown/take less space
     },
-    card: {
-        flex: 1,
-        borderRadius: 16,
-        backgroundColor: '#fff',
-        overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 5,
-        marginBottom: 10, // Or adjust as needed for spacing below card if buttons aren't absolute
-    },
+    // REMOVED the 'card' style as 'container' now serves this purpose.
+    // card: { ... }
+
     imageBackground: {
-        flex: 1,
+        // Image takes available space, pushing details/buttons down or overlaying content on top
+        // We need to control its height or flex grow behaviour
+        // Option 1: Fixed portion of height?
+        // height: screenHeight * 0.5, // Example: 50% of screen? Adjust as needed
+        // Option 2: Let it flex (might be harder to manage with collapsible details)
+        flex: 1, // Let image try to take up max space initially
         width: '100%',
-        justifyContent: 'flex-end',
-        backgroundColor: '#E0E0E0', // Background color if image fails
+        justifyContent: 'flex-end', // Align gradient overlay to the bottom
+        backgroundColor: '#E0E0E0', // Fallback color
     },
     gradientOverlay: {
-        backgroundColor: 'rgba(0, 0, 0, 0.4)', // Dark gradient overlay
-        paddingTop: 80, // Push content down from top
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        paddingTop: 40, // Adjust as needed for status bar etc.
         paddingBottom: 16,
     },
     contentOverlay: {
@@ -267,17 +227,17 @@ const styles = StyleSheet.create({
     },
     infoText: {
         fontSize: 14,
-        color: '#FFFFFFCC', // Slightly transparent white
+        color: '#FFFFFFCC',
         marginLeft: 6,
-        flex: 1, // Allow text to wrap if needed
+        flex: 1,
     },
     icon: {
-      // Style for icons in the overlay if needed
+        // Style for icons in the overlay if needed
     },
     badgeRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        marginBottom: 15, // Space before details toggle
+        marginBottom: 15, // Space below badge OR placeholder margin
     },
     badge: {
         paddingHorizontal: 10,
@@ -287,7 +247,7 @@ const styles = StyleSheet.create({
         marginBottom: 6,
     },
     categoryBadge: {
-        backgroundColor: 'rgba(255, 255, 255, 0.25)', // Semi-transparent white badge
+        backgroundColor: 'rgba(98, 92, 184, 0.25)',
     },
     categoryBadgeText: {
         fontSize: 12,
@@ -296,12 +256,12 @@ const styles = StyleSheet.create({
     },
     detailsToggleSection: {
         marginTop: 10,
-        alignItems: 'flex-start', // Align button to the left
+        alignItems: 'flex-start',
     },
     detailsButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 5,
+        paddingVertical: 5, // Make it easier to tap
     },
     detailsButtonText: {
         color: '#FFFFFF',
@@ -309,12 +269,18 @@ const styles = StyleSheet.create({
         marginRight: 5,
     },
     detailsContainer: {
+        // This appears BELOW the ImageBackground when showDetails is true
         paddingHorizontal: 16,
         paddingVertical: 16,
-        maxHeight: screenHeight * 0.25, // Limit height of details scroll
-        backgroundColor: '#ffffff', // White background for details
-        borderTopWidth: 1,
+        // Max height relative to the CARD, not screen, might be better
+        // Let's limit its flex grow instead? Or keep max height for now.
+        maxHeight: screenHeight * 0.25, // Constrain the scrollable area size
+        // backgroundColor: '#ffffff', // Inherits from container now
+        borderTopWidth: 1, // Separator line
         borderTopColor: '#eee',
+        // Crucial for managing space with flex:1 imageBackground
+        flexGrow: 0, // Don't allow this to grow indefinitely
+        flexShrink: 1, // Allow it to shrink if needed
     },
     detailsBlock: {
         marginBottom: 15,
@@ -322,52 +288,51 @@ const styles = StyleSheet.create({
     detailsHeading: {
         fontSize: 13,
         fontWeight: 'bold',
-        color: '#888', // Grey heading
+        color: '#888',
         textTransform: 'uppercase',
         marginBottom: 5,
     },
     detailsDescription: {
         fontSize: 15,
-        color: '#333', // Darker text for description
+        color: '#333',
         lineHeight: 22,
     },
     detailsInfoRow: {
         flexDirection: 'row',
-        alignItems: 'flex-start', // Align icon and text nicely
+        alignItems: 'flex-start',
     },
     iconDetails: {
         marginRight: 10,
-        marginTop: 2, // Align icon slightly lower
+        marginTop: 2,
         color: '#555',
-        width: 16, // Ensure icon takes up consistent space
+        width: 16, // Keep consistent alignment
     },
     detailsInfoText: {
         fontSize: 14,
         color: '#555',
-        flex: 1, // Allow text to wrap
+        flex: 1,
         lineHeight: 20,
     },
     actionButtonsContainer: {
+        // Sits at the bottom because of container's justifyContent + its own flex position
         flexDirection: 'row',
-        justifyContent: 'space-evenly', // Distribute buttons evenly
+        justifyContent: 'space-evenly',
         alignItems: 'center',
         paddingVertical: 15,
         paddingHorizontal: 20,
-        backgroundColor: 'transparent', // No background for action button area
-        // If buttons should overlay the card, use absolute positioning:
-        // position: 'absolute',
-        // bottom: 20, // Adjust as needed
-        // left: 0,
-        // right: 0,
-        // Otherwise, ensure the parent <View style={styles.container}> handles layout correctly
+        // backgroundColor: 'transparent', // No background needed here
+        // Ensure it doesn't grow or shrink unexpectedly
+        flexGrow: 0,
+        flexShrink: 0,
     },
     actionButton: {
         width: 64,
         height: 64,
-        borderRadius: 32, // Circular buttons
+        borderRadius: 32,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF', // White background for buttons
+        backgroundColor: '#FFFFFF', // White background for the button itself
+        // Keep shadows for the buttons
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
@@ -375,12 +340,11 @@ const styles = StyleSheet.create({
         elevation: 6,
     },
     skipButton: {
-      // Specific styles for skip button if needed (e.g., border)
+        // Specific styles if needed
     },
     likeButton: {
-        backgroundColor: '#4CAF50', // Green for like button
+        backgroundColor: '#4CAF50', // Green background for like
     },
 });
 
-// Export component using the correct name
 export default BusinessProfileCard;

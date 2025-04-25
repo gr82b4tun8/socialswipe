@@ -1,63 +1,74 @@
-// src/screens/DiscoverScreen.tsx (FIXED to pass listing.id)
+// src/screens/DiscoverScreen.tsx (Adjusted Stack Positioning for More Height)
 
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Button } from 'react-native';
-// *** Import the CORRECT names from the context ***
-import { useDiscovery, BusinessListing } from '../contexts/DiscoveryContext'; // Make sure BusinessListing is exported or import from card
-import BusinessProfileCard from '../components/BusinessProfileCard'; // Ensure path is correct
+import React from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, Button, SafeAreaView } from 'react-native';
+
+// Import Contexts
+import { useDiscovery, BusinessListing } from '../contexts/DiscoveryContext'; // Adjust path if needed
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext'; // Adjust path if needed
+import { AppTheme } from '../theme/theme'; // Import AppTheme type
+
+// Import Components
+import BusinessCardStack from '../components/BusinessCardStack'; // Ensure path is correct
 
 const DiscoverScreen: React.FC = () => {
     const { session } = useAuth();
-    // *** Use the CORRECT names provided by the context ***
     const {
-        currentListing,    // <-- Use currentListing
-        likeListing,       // <-- Use likeListing (expects listing.id)
-        dismissListing,    // <-- Use dismissListing (expects listing.id)
-        isLoadingListings, // <-- Use isLoadingListings
-        reloadListings,    // <-- Use reloadListings
+        currentListing,
+        likeListing,
+        dismissListing,
+        isLoadingListings,
+        reloadListings,
     } = useDiscovery();
 
-    // *** Update loading logic with CORRECT variable name ***
-    if (isLoadingListings && !currentListing) { // <-- Use isLoadingListings and currentListing
+    const { theme } = useTheme();
+    const styles = getThemedStyles(theme);
+
+    // Loading State - Preserved
+    if (isLoadingListings && !currentListing) {
         return (
-            <View style={styles.centered}>
-                <ActivityIndicator size="large" color="#FF6347" />
-            </View>
+            <SafeAreaView style={[styles.centered, { backgroundColor: theme.colors.background }]}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+            </SafeAreaView>
         );
     }
 
-     // --- DEBUGGING: Log ---
-     // console.log('DiscoverScreen Render:', { isLoadingListings, currentListing });
-     // -----------------------------
+    // Placeholder for behindCount - Preserved (using fixed value 3 as in original)
+    const placeholderBehindCount = 3;
 
+    // Handlers - Preserved
+    const handleLike = (managerUserId: string) => {
+        if (!currentListing) return;
+        console.log(`DiscoverScreen: Like action triggered for manager ${managerUserId} (Listing ID: ${currentListing.id})`);
+        likeListing(currentListing.id);
+    };
+
+    const handleDismiss = (managerUserId: string) => {
+        if (!currentListing) return;
+        console.log(`DiscoverScreen: Dismiss action triggered for manager ${managerUserId} (Listing ID: ${currentListing.id})`);
+        dismissListing(currentListing.id);
+    };
+
+    // console.log("--- DiscoverScreen: Attempting to render BusinessCardStack ---"); // Preserved (commented out)
+
+    // JSX Structure - Preserved
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             <View style={styles.contentArea}>
-                {/* *** Check if currentListing exists *** */}
-                {currentListing ? ( // <-- Use currentListing
+                {currentListing ? (
+                    // Card Stack Rendering - Preserved
                     <View style={styles.cardContainer}>
-                        <BusinessProfileCard
-                            listing={currentListing} // Pass data via 'listing' prop
-                            // --- FIX IMPLEMENTED BELOW ---
-                            // Pass the unique ID of the listing (currentListing.id)
-                            // to the like/dismiss functions from the context.
-                            onLikeBusiness={() => {
-                                // Optional log for debugging:
-                                console.log(`DiscoverScreen: Liking Listing ID: ${currentListing.id}`);
-                                likeListing(currentListing.id); // <-- CORRECT ID passed
-                            }}
-                            onDismissBusiness={() => {
-                                // Optional log for debugging:
-                                console.log(`DiscoverScreen: Dismissing Listing ID: ${currentListing.id}`);
-                                dismissListing(currentListing.id); // <-- CORRECT ID passed
-                            }}
-                            // --- END FIX ---
+                        <BusinessCardStack
+                            topListing={currentListing}
+                            behindCount={placeholderBehindCount}
+                            onLikeBusiness={handleLike}
+                            onDismissBusiness={handleDismiss}
                         />
                     </View>
                 ) : (
-                    // *** Update condition with CORRECT variable name ***
-                    !isLoadingListings && ( // <-- Use isLoadingListings
+                    // "No Content" View Rendering - Preserved
+                    !isLoadingListings && (
                         <View style={styles.noContentContainer}>
                             <View style={styles.noContentCard}>
                                 <Text style={styles.noContentTitle}>That's everyone!</Text>
@@ -68,82 +79,90 @@ const DiscoverScreen: React.FC = () => {
                             <View style={styles.reloadButtonContainer}>
                                 <Button
                                     title="Reload Profiles"
-                                    // *** Use CORRECT function name ***
-                                    onPress={reloadListings} // <-- Use reloadListings
-                                    color="#FF6347"
+                                    onPress={reloadListings}
+                                    color={theme.colors.primary}
                                 />
                             </View>
                         </View>
                     )
                 )}
             </View>
-        </View>
+        </SafeAreaView>
     );
 };
 
-// --- Styles --- (Keep styles as they were)
-const styles = StyleSheet.create({
-   // ... styles remain the same
+// Helper function to generate styles based on the theme
+const getThemedStyles = (theme: AppTheme) => StyleSheet.create({
     container: {
         flex: 1,
-        alignItems: 'center',
-        backgroundColor: '#f0f0f0',
-        paddingTop: 10,
+        backgroundColor: theme.colors.background,
+        // --- MODIFIED: Reduced/Removed Padding Bottom ---
+        // paddingBottom: theme.spacing.medium, // Original value
+        paddingBottom: 0, // Changed to 0 to maximize available vertical space
+        // You could also use theme.spacing.small if you want a tiny bit of padding
+        // -------------------------------------
     },
     contentArea: {
         flex: 1,
-        justifyContent: 'center',
+        justifyContent: 'center', // Keeps the card vertically centered in the available space
         alignItems: 'center',
         width: '100%',
     },
     cardContainer: {
-        width: '90%',
-        maxWidth: 400,
-        height: '85%', // Adjust as needed
+        width: '90%', // Keep horizontal constraints
+        // --- MODIFIED: Increased Height ---
+        height: '90%', // Increased from 80%. Adjust as needed (e.g., '88%', '92%')
+        // ---------------------------------
+        maxWidth: 400, // Keep max width constraint
+         // --- MODIFIED: Increased Max Height ---
+        maxHeight: 700, // Increased from 550. Adjust to allow percentage height to work on tall screens
+        // -----------------------------------
+        // backgroundColor: 'lightblue', // Keep commented out
     },
-    noContentContainer: {
+    // --- Other styles remain unchanged ---
+    noContentContainer: { // Styles for the "empty deck" view - Preserved
         width: '90%',
         maxWidth: 350,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingBottom: 20,
+        paddingBottom: theme.spacing.lg, // Keep padding here for button spacing
     },
-    noContentCard: {
+    noContentCard: { // Styles for the "empty deck" card - Preserved
         width: '100%',
-        padding: 24,
-        backgroundColor: '#ffffff',
-        borderRadius: 12,
+        padding: theme.spacing.lg,
+        backgroundColor: theme.colors.card,
+        borderRadius: theme.borderRadius.large,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.20,
-        shadowRadius: 1.41,
-        elevation: 2,
+        shadowOpacity: theme.isDark ? 0.4 : 0.15,
+        shadowRadius: 2,
+        elevation: 3,
         alignItems: 'center',
     },
-    noContentTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        marginBottom: 8,
-        color: '#333',
+    noContentTitle: { // Styles for the "empty deck" text - Preserved
+        fontSize: theme.fonts.sizes.large,
+        fontWeight: theme.fonts.weights.bold,
+        fontFamily: theme.fonts.families.bold,
+        marginBottom: theme.spacing.sm,
+        color: theme.colors.text,
         textAlign: 'center',
     },
-    noContentText: {
-        fontSize: 14,
-        color: '#6c757d',
+    noContentText: { // Styles for the "empty deck" text - Preserved
+        fontSize: theme.fonts.sizes.medium,
+        fontFamily: theme.fonts.families.regular,
+        color: theme.colors.textSecondary,
         textAlign: 'center',
     },
-     reloadButtonContainer: {
-        marginTop: 20,
+    reloadButtonContainer: { // Styles for the reload button area - Preserved
+        marginTop: theme.spacing.lg,
         width: '100%',
         maxWidth: 250,
     },
-    centered: {
+    centered: { // Styles for the loading indicator container - Preserved
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f0f0f0',
     },
 });
-
 
 export default DiscoverScreen;
