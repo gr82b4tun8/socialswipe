@@ -1,6 +1,6 @@
-// src/screens/DiscoverScreen.tsx (Adjusted Stack Positioning for More Height)
+// src/screens/DiscoverScreen.tsx (Fetching Likers)
 
-import React from 'react';
+import React, { useState, useEffect } from 'react'; // Import useState, useEffect
 import { View, Text, StyleSheet, ActivityIndicator, Button, SafeAreaView } from 'react-native';
 
 // Import Contexts
@@ -11,9 +11,17 @@ import { AppTheme } from '../theme/theme'; // Import AppTheme type
 
 // Import Components
 import BusinessCardStack from '../components/BusinessCardStack'; // Ensure path is correct
+// Import the IndividualProfile type (adjust path/name as needed)
+import { Profile as IndividualProfile } from './EditProfileScreen'; // Example using type from EditProfileScreen
+// Import Supabase client
+import { supabase } from '../lib/supabaseClient'; // Adjust path
+
+// Define the maximum number of liker profiles to show behind
+const MAX_BEHIND_CARDS = 5; // Consistent with BusinessCardStack
 
 const DiscoverScreen: React.FC = () => {
-    const { session } = useAuth();
+    // Existing Hooks - Preserved
+    const { user, session } = useAuth(); // Get user and session
     const {
         currentListing,
         likeListing,
@@ -21,11 +29,92 @@ const DiscoverScreen: React.FC = () => {
         isLoadingListings,
         reloadListings,
     } = useDiscovery();
-
     const { theme } = useTheme();
     const styles = getThemedStyles(theme);
 
-    // Loading State - Preserved
+    // --- New State for Liker Profiles ---
+    const [likerProfiles, setLikerProfiles] = useState<IndividualProfile[]>([]);
+    const [isLoadingLikers, setIsLoadingLikers] = useState<boolean>(false);
+
+    // --- Effect to Fetch Likers when currentListing changes ---
+    useEffect(() => {
+        // Function to fetch likers and their profiles
+        const fetchLikers = async () => {
+            if (!currentListing || !user) {
+                // If no listing or user, clear profiles and stop
+                setLikerProfiles([]);
+                return;
+            }
+
+            setIsLoadingLikers(true);
+            setLikerProfiles([]); // Clear previous likers immediately
+
+            try {
+                console.log(`[DiscoverScreen] Fetching likes for Listing ID: ${currentListing.id}`);
+
+                // 1. Fetch liker_user_ids from profile_likes table
+                const { data: likeData, error: likeError } = await supabase
+                    .from('profile_likes')
+                    .select('liker_user_id')
+                    .eq('liked_listing_id', currentListing.id)
+                    // Optional: Exclude the current user viewing the stack
+                    // .neq('liker_user_id', user.id)
+                    .limit(MAX_BEHIND_CARDS); // Limit the number of likes fetched
+
+                if (likeError) {
+                    console.error('[DiscoverScreen] Error fetching likes:', likeError.message);
+                    throw likeError; // Throw error to be caught by outer catch
+                }
+
+                if (likeData && likeData.length > 0) {
+                    const likerIds = likeData.map(like => like.liker_user_id);
+                    console.log(`[DiscoverScreen] Found Liker IDs:`, likerIds);
+
+                    // 2. Fetch profiles for these liker_user_ids
+                    const { data: profileData, error: profileError } = await supabase
+                        .from('individual_profiles') // Fetch from individual profiles table
+                        .select('*') // Select necessary fields for ProfileCard
+                        .in('user_id', likerIds);
+
+                    if (profileError) {
+                        console.error('[DiscoverScreen] Error fetching liker profiles:', profileError.message);
+                        // Check for specific errors like RLS issues
+                        if (profileError.message.includes('permission denied') || profileError.message.includes('row-level security')) {
+                           console.warn('[DiscoverScreen] Possible RLS issue fetching profiles. Ensure policy allows reading other user profiles.');
+                        }
+                        throw profileError; // Throw error
+                    }
+
+                    if (profileData) {
+                        console.log(`[DiscoverScreen] Successfully fetched ${profileData.length} liker profiles.`);
+                        // Ensure data matches the expected IndividualProfile type
+                        setLikerProfiles(profileData as IndividualProfile[]);
+                    } else {
+                         console.log('[DiscoverScreen] No profile data returned for liker IDs.');
+                         setLikerProfiles([]); // Set empty if profile fetch returned null/undefined
+                    }
+
+                } else {
+                    console.log('[DiscoverScreen] No likes found for this listing.');
+                    setLikerProfiles([]); // No likes found, ensure state is empty
+                }
+
+            } catch (error) {
+                // Catch errors from either query
+                console.error('[DiscoverScreen] Failed to complete liker fetch process:', error);
+                setLikerProfiles([]); // Ensure profiles are cleared on any error
+            } finally {
+                setIsLoadingLikers(false); // Stop loading indicator
+                console.log('[DiscoverScreen] Finished liker fetch attempt.');
+            }
+        };
+
+        fetchLikers(); // Execute the fetch function
+
+        // Dependency array: Re-run effect if currentListing or the user session changes
+    }, [currentListing, user]); // Ensure user is included if used in queries/checks
+
+    // Loading State - Preserved (Handles initial listing load)
     if (isLoadingListings && !currentListing) {
         return (
             <SafeAreaView style={[styles.centered, { backgroundColor: theme.colors.background }]}>
@@ -34,36 +123,36 @@ const DiscoverScreen: React.FC = () => {
         );
     }
 
-    // Placeholder for behindCount - Preserved (using fixed value 3 as in original)
-    const placeholderBehindCount = 3;
-
-    // Handlers - Preserved
-    const handleLike = (managerUserId: string) => {
+    // Handlers - Preserved (Minor update to pass listing ID consistently)
+    const handleLike = () => { // Removed managerUserId param as it wasn't used
         if (!currentListing) return;
-        console.log(`DiscoverScreen: Like action triggered for manager ${managerUserId} (Listing ID: ${currentListing.id})`);
-        likeListing(currentListing.id);
+        console.log(`DiscoverScreen: Like action triggered for Listing ID: ${currentListing.id}`);
+        likeListing(currentListing.id); // Assumes likeListing only needs listingId
     };
 
-    const handleDismiss = (managerUserId: string) => {
+    const handleDismiss = () => { // Removed managerUserId param
         if (!currentListing) return;
-        console.log(`DiscoverScreen: Dismiss action triggered for manager ${managerUserId} (Listing ID: ${currentListing.id})`);
-        dismissListing(currentListing.id);
+        console.log(`DiscoverScreen: Dismiss action triggered for Listing ID: ${currentListing.id}`);
+        dismissListing(currentListing.id); // Assumes dismissListing only needs listingId
     };
 
-    // console.log("--- DiscoverScreen: Attempting to render BusinessCardStack ---"); // Preserved (commented out)
 
-    // JSX Structure - Preserved
+    // JSX Structure - Updated BusinessCardStack props
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.contentArea}>
                 {currentListing ? (
-                    // Card Stack Rendering - Preserved
                     <View style={styles.cardContainer}>
+                         {/* Optional: Show subtle loading for likers if needed */}
+                         {/* {isLoadingLikers && <ActivityIndicator style={styles.likerLoadingIndicator} size="small" />} */}
                         <BusinessCardStack
                             topListing={currentListing}
-                            behindCount={placeholderBehindCount}
-                            onLikeBusiness={handleLike}
-                            onDismissBusiness={handleDismiss}
+                            // --- REMOVED behindCount prop ---
+                            // behindCount={placeholderBehindCount}
+                            // --- ADDED likerProfiles prop ---
+                            likerProfiles={likerProfiles}
+                            onLikeBusiness={handleLike} // Pass updated handlers
+                            onDismissBusiness={handleDismiss} // Pass updated handlers
                         />
                     </View>
                 ) : (
@@ -91,43 +180,42 @@ const DiscoverScreen: React.FC = () => {
     );
 };
 
-// Helper function to generate styles based on the theme
+// Helper function to generate styles based on the theme - Preserved
 const getThemedStyles = (theme: AppTheme) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.colors.background,
-        // --- MODIFIED: Reduced/Removed Padding Bottom ---
-        // paddingBottom: theme.spacing.medium, // Original value
-        paddingBottom: 0, // Changed to 0 to maximize available vertical space
-        // You could also use theme.spacing.small if you want a tiny bit of padding
-        // -------------------------------------
+        paddingBottom: 0,
     },
     contentArea: {
         flex: 1,
-        justifyContent: 'center', // Keeps the card vertically centered in the available space
+        justifyContent: 'center',
         alignItems: 'center',
         width: '100%',
     },
     cardContainer: {
-        width: '90%', // Keep horizontal constraints
-        // --- MODIFIED: Increased Height ---
-        height: '90%', // Increased from 80%. Adjust as needed (e.g., '88%', '92%')
-        // ---------------------------------
-        maxWidth: 400, // Keep max width constraint
-         // --- MODIFIED: Increased Max Height ---
-        maxHeight: 700, // Increased from 550. Adjust to allow percentage height to work on tall screens
-        // -----------------------------------
-        // backgroundColor: 'lightblue', // Keep commented out
+        width: '90%',
+        height: '90%',
+        maxWidth: 400,
+        maxHeight: 700,
+        position: 'relative', // Needed if using absolute positioning for indicator
+    },
+    // Optional style for liker loading indicator
+    likerLoadingIndicator: {
+        position: 'absolute',
+        top: 10,
+        alignSelf: 'center',
+        zIndex: 100, // Ensure it's above cards if needed
     },
     // --- Other styles remain unchanged ---
-    noContentContainer: { // Styles for the "empty deck" view - Preserved
+    noContentContainer: {
         width: '90%',
         maxWidth: 350,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingBottom: theme.spacing.lg, // Keep padding here for button spacing
+        paddingBottom: theme.spacing.lg,
     },
-    noContentCard: { // Styles for the "empty deck" card - Preserved
+    noContentCard: {
         width: '100%',
         padding: theme.spacing.lg,
         backgroundColor: theme.colors.card,
@@ -139,7 +227,7 @@ const getThemedStyles = (theme: AppTheme) => StyleSheet.create({
         elevation: 3,
         alignItems: 'center',
     },
-    noContentTitle: { // Styles for the "empty deck" text - Preserved
+    noContentTitle: {
         fontSize: theme.fonts.sizes.large,
         fontWeight: theme.fonts.weights.bold,
         fontFamily: theme.fonts.families.bold,
@@ -147,18 +235,18 @@ const getThemedStyles = (theme: AppTheme) => StyleSheet.create({
         color: theme.colors.text,
         textAlign: 'center',
     },
-    noContentText: { // Styles for the "empty deck" text - Preserved
+    noContentText: {
         fontSize: theme.fonts.sizes.medium,
         fontFamily: theme.fonts.families.regular,
         color: theme.colors.textSecondary,
         textAlign: 'center',
     },
-    reloadButtonContainer: { // Styles for the reload button area - Preserved
+    reloadButtonContainer: {
         marginTop: theme.spacing.lg,
         width: '100%',
         maxWidth: 250,
     },
-    centered: { // Styles for the loading indicator container - Preserved
+    centered: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
