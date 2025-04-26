@@ -1,16 +1,14 @@
-// src/pages/ProfileScreen.tsx (Conditional Business UI)
-
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  Alert,
-  SafeAreaView,
-  FlatList,
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  Alert,
+  SafeAreaView,
+  FlatList,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native"; // <-- Import useFocusEffect
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -25,12 +23,12 @@ import ProfileCard, { Profile as ProfileCardData } from '../components/ProfileCa
 
 // Interfaces (Keep as is)
 interface ManagerProfile {
-  user_id: string;
-  created_at: string;
-  updated_at: string;
-  first_name?: string | null;
-  last_name?: string | null;
-  username?: string | null;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  username?: string | null;
   // Include fields needed for the ProfileCard preview, assuming they exist in individual_profiles
   date_of_birth?: string | null;
   gender?: string | null;
@@ -41,36 +39,36 @@ interface ManagerProfile {
   profile_pictures?: string[] | null;
 }
 interface BusinessListing {
-  id: string;
-  manager_user_id: string;
-  business_name: string;
-  category: string;
-  description?: string | null;
-  address_street?: string | null;
-  address_city?: string | null;
-  address_state?: string | null;
-  address_postal_code?: string | null;
-  address_country?: string | null;
-  phone_number?: string | null;
-  listing_photos?: string[] | null;
-  status: string;
-  created_at: string;
-  updated_at: string;
+  id: string;
+  manager_user_id: string;
+  business_name: string;
+  category: string;
+  description?: string | null;
+  address_street?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
+  address_postal_code?: string | null;
+  address_country?: string | null;
+  phone_number?: string | null;
+  listing_photos?: string[] | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
 }
 
 type ProfileScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
-  'Main' // Or the correct name for the navigator containing this screen
+  RootStackParamList,
+  'Main' // Or the correct name for the navigator containing this screen
 >;
 
 const ProfileScreen: React.FC = () => {
-  const navigation = useNavigation<ProfileScreenNavigationProp>();
-  const { user, loadingAuth } = useAuth();
+  const navigation = useNavigation<ProfileScreenNavigationProp>();
+  const { user, loadingAuth } = useAuth();
 
-  const [managerProfile, setManagerProfile] = useState<ManagerProfile | null>(null);
-  const [loadingManagerProfile, setLoadingManagerProfile] = useState(true);
-  const [businessListings, setBusinessListings] = useState<BusinessListing[]>([]);
-  const [loadingListings, setLoadingListings] = useState(true);
+  const [managerProfile, setManagerProfile] = useState<ManagerProfile | null>(null);
+  const [loadingManagerProfile, setLoadingManagerProfile] = useState(true);
+  const [businessListings, setBusinessListings] = useState<BusinessListing[]>([]);
+  const [loadingListings, setLoadingListings] = useState(true);
 
   // --- Refetch data when screen comes into focus ---
   const fetchData = useCallback(async (userId: string) => {
@@ -101,6 +99,8 @@ const ProfileScreen: React.FC = () => {
 
 
     // Fetch Business Listings (Only if no manager profile exists)
+    // *** NOTE: This logic remains, fetching listings only if no manager profile.
+    // The UI rendering logic will determine what is ultimately displayed. ***
     if (!profileData) { // Only fetch listings if there's no individual profile
          console.log("[ProfileScreen] Fetching business listings on focus (as no manager profile found)");
         const { data: listingData, error: listingError } = await supabase
@@ -117,7 +117,10 @@ const ProfileScreen: React.FC = () => {
             setBusinessListings(listingData || []);
         }
     } else {
-        // If a manager profile exists, we don't need to show/load business listings in this view logic
+        // If a manager profile exists, we don't need to *fetch* business listings here
+        // according to the original logic, but the state is reset just in case.
+        // **Important**: If you *ever* want to show businesses alongside a personal profile,
+        // you would need to adjust this data fetching logic too.
         setBusinessListings([]);
     }
     setLoadingListings(false);
@@ -153,55 +156,57 @@ const ProfileScreen: React.FC = () => {
 
 
   // --- Handlers ---
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) { Toast.show({ type: "error", text1: "Logout failed", text2: error.message }); }
-    else {
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) { Toast.show({ type: "error", text1: "Logout failed", text2: error.message }); }
+    else {
         Toast.show({ type: "success", text1: "Logged out successfully" });
         // Reset local state immediately after logout success
         setManagerProfile(null);
         setBusinessListings([]);
     }
-  };
+  };
 
-  const handleEditManagerProfile = () => {
-    // The button should only be visible if managerProfile exists, but check again just in case
-    if (managerProfile) {
-      console.log("Navigating to EditProfile (for manager/individual profile)");
+  const handleEditManagerProfile = () => {
+    // The button should only be visible if managerProfile exists, but check again just in case
+    if (managerProfile) {
+      console.log("Navigating to EditProfile (for manager/individual profile)");
       // *** CHANGE: Navigate without passing profileData ***
       // EditProfileScreen will fetch its own data using the authenticated user's ID
-      navigation.navigate('EditProfile'); // Ensure 'EditProfile' matches your navigator's screen name
-    } else {
+      navigation.navigate('EditProfile'); // Ensure 'EditProfile' matches your navigator's screen name
+    } else {
         console.warn("[ProfileScreen] Edit button pressed but managerProfile is null. This shouldn't happen if UI logic is correct.");
         Toast.show({ type: 'info', text1: 'Cannot edit profile', text2: 'Profile data not loaded.' });
     }
-  };
+  };
 
-  const handleAddBusiness = () => {
-      console.log("Navigating to CreateBusinessProfileScreen");
-      navigation.navigate('CreateBusinessProfileScreen');
-  };
+  // --- handleAddBusiness function remains unchanged ---
+  // It's still used in the "Create Profile" prompt and the "Add Another Business" button
+  const handleAddBusiness = () => {
+      console.log("Navigating to CreateBusinessProfileScreen");
+      navigation.navigate('CreateBusinessProfileScreen');
+  };
 
-  const handleManageListings = () => {
-    console.log("Navigate to MyListingsScreen (to be created)");
-    Toast.show({ type: 'info', text1: 'Manage Listings screen not implemented yet.' });
-  };
+  const handleManageListings = () => {
+    console.log("Navigate to MyListingsScreen (to be created)");
+    Toast.show({ type: 'info', text1: 'Manage Listings screen not implemented yet.' });
+  };
 
 
-  // --- Render Logic ---
+  // --- Render Logic ---
 
-  // 1. Loading State Check (Keep as is)
+  // 1. Loading State Check (Keep as is)
   // Use combined loading check
-  if (loadingAuth || (user && (loadingManagerProfile || loadingListings))) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#FF6347" />
-          <Text>Loading Your Account...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  if (loadingAuth || (user && (loadingManagerProfile || loadingListings))) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#FF6347" />
+          <Text>Loading Your Account...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   // 2. Logged Out State Check (Render this before checking for profiles)
   if (!user) {
@@ -224,178 +229,174 @@ const ProfileScreen: React.FC = () => {
       );
   }
 
-  // 3. No Profile State Check (User is logged in, but has neither profile type)
-  if (user && !managerProfile && businessListings.length === 0) {
-    console.log("[ProfileScreen] Rendering 'Create Profile' prompt.");
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centered}>
+  // 3. No Profile State Check (User is logged in, but has neither profile type)
+  // --- This section remains unchanged ---
+  if (user && !managerProfile && businessListings.length === 0) {
+    console.log("[ProfileScreen] Rendering 'Create Profile' prompt.");
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.centered}>
             <Ionicons name="person-add-outline" size={60} color="#aaa" />
-           <Text style={styles.infoText}>Welcome!</Text>
-            <Text style={styles.subInfoText}>How would you like to get started? Choose the type of profile you want to create first.</Text>
-            <View style={styles.profileChoiceButtonContainer}>
-                <Pressable style={[styles.button, styles.buttonPrimaryChoice]} onPress={() => navigation.navigate('CreateProfile')}>
+            <Text style={styles.infoText}>Welcome!</Text>
+            <Text style={styles.subInfoText}>How would you like to get started? Choose the type of profile you want to create first.</Text>
+            <View style={styles.profileChoiceButtonContainer}>
+                <Pressable style={[styles.button, styles.buttonPrimaryChoice]} onPress={() => navigation.navigate('CreateProfile')}>
                     <Ionicons name="person-outline" size={20} color="#fff" style={{ marginRight: 8 }}/>
-                    <Text style={styles.buttonPrimaryChoiceText}>Create Personal Profile</Text>
-                </Pressable>
-                <Pressable style={[styles.button, styles.buttonSecondaryChoice]} onPress={handleAddBusiness}>
+                    <Text style={styles.buttonPrimaryChoiceText}>Create Personal Profile</Text>
+                </Pressable>
+                {/* handleAddBusiness is correctly used here */}
+                <Pressable style={[styles.button, styles.buttonSecondaryChoice]} onPress={handleAddBusiness}>
                     <Ionicons name="business-outline" size={20} color="#fff" style={{ marginRight: 8 }}/>
-                    <Text style={styles.buttonSecondaryChoiceText}>Create Business Profile</Text>
-                </Pressable>
-            </View>
-            <View style={styles.logoutContainerStandalone}>
-                <Pressable style={[styles.button, styles.buttonGhost]} onPress={handleLogout}>
-                    <Ionicons name="log-out-outline" size={20} color="#6c757d" style={{ marginRight: 8 }}/>
-                    <Text style={styles.buttonGhostText}>Log Out</Text>
-                </Pressable>
-            </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
+                    <Text style={styles.buttonSecondaryChoiceText}>Create Business Profile</Text>
+                </Pressable>
+            </View>
+            <View style={styles.logoutContainerStandalone}>
+                <Pressable style={[styles.button, styles.buttonGhost]} onPress={handleLogout}>
+                    <Ionicons name="log-out-outline" size={20} color="#6c757d" style={{ marginRight: 8 }}/>
+                    <Text style={styles.buttonGhostText}>Log Out</Text>
+                </Pressable>
+            </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
 
-  // 4. Profile Exists State: Render the main view (Either Individual or Business List)
-  console.log("[ProfileScreen] Rendering main profile view (Individual or Business List).");
+  // 4. Profile Exists State: Render the main view (Either Individual or Business List)
+  console.log("[ProfileScreen] Rendering main profile view (Individual or Business List).");
 
-  // Determine display name
-  const getDisplayName = () => {
-      if (managerProfile?.first_name) return `${managerProfile.first_name}${managerProfile.last_name ? ` ${managerProfile.last_name}` : ''}`;
-      if (managerProfile?.username) return managerProfile.username;
+  // Determine display name (logic remains unchanged)
+  const getDisplayName = () => {
+      if (managerProfile?.first_name) return `${managerProfile.first_name}${managerProfile.last_name ? ` ${managerProfile.last_name}` : ''}`;
+      if (managerProfile?.username) return managerProfile.username;
       // If no manager profile, but listings exist, use the first business name (or a generic title)
       if (!managerProfile && businessListings.length > 0) return businessListings[0].business_name || 'My Businesses';
       // Fallback if somehow user exists but no profile/listing data loaded properly
-      return user?.email || 'My Account';
-  };
-  const displayName = getDisplayName();
+      return user?.email || 'My Account';
+  };
+  const displayName = getDisplayName();
 
-  // --- Helper function to create ProfileCardData ---
-  const createProfileCardData = (profile: ManagerProfile | null): ProfileCardData | null => {
-      if (!profile) return null;
-      // Use actual data if available, otherwise provide sensible defaults/placeholders if needed
-      const cardData: ProfileCardData = {
-          id: profile.user_id, // Use user_id from profile as the card ID
-          created_at: profile.created_at,
-          updated_at: profile.updated_at,
-          first_name: profile.first_name || profile.username || "User", // Make sure ProfileCard can handle this
-          last_name: profile.last_name, // Can be null
+  // --- Helper function to create ProfileCardData (logic remains unchanged) ---
+  const createProfileCardData = (profile: ManagerProfile | null): ProfileCardData | null => {
+      if (!profile) return null;
+      // Use actual data if available, otherwise provide sensible defaults/placeholders if needed
+      const cardData: ProfileCardData = {
+          id: profile.user_id, // Use user_id from profile as the card ID
+          created_at: profile.created_at,
+          updated_at: profile.updated_at,
+          first_name: profile.first_name || profile.username || "User", // Make sure ProfileCard can handle this
+          last_name: profile.last_name, // Can be null
           // These fields MUST exist in your ManagerProfile interface and be fetched from Supabase
-          date_of_birth: profile.date_of_birth || '1970-01-01', // Provide a default or handle null in ProfileCard
-          gender: profile.gender || 'N/A', // Provide a default or handle null in ProfileCard
-          bio: profile.bio, // Can be null
-          interests: profile.interests, // Can be null
-          location: profile.location, // Can be null
-          looking_for: profile.looking_for, // Can be null
-          profile_pictures: profile.profile_pictures || [], // Ensure it's always an array
-      };
-      return cardData;
-  };
+          date_of_birth: profile.date_of_birth || '1970-01-01', // Provide a default or handle null in ProfileCard
+          gender: profile.gender || 'N/A', // Provide a default or handle null in ProfileCard
+          bio: profile.bio, // Can be null
+          interests: profile.interests, // Can be null
+          location: profile.location, // Can be null
+          looking_for: profile.looking_for, // Can be null
+          profile_pictures: profile.profile_pictures || [], // Ensure it's always an array
+      };
+      return cardData;
+  };
 
-  const profileCardInput = managerProfile ? createProfileCardData(managerProfile) : null;
+  const profileCardInput = managerProfile ? createProfileCardData(managerProfile) : null;
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContentContainer}
-      >
-        {/* --- Header --- */}
-        <View style={styles.header}>
-           {/* Left side placeholder/button area */}
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContentContainer}
+      >
+        {/* --- Header --- */}
+        <View style={styles.header}>
+           {/* --- MODIFICATION START --- */}
+           {/* Left side placeholder area. The conditional 'Add Business' button is REMOVED. */}
+           {/* A placeholder is always rendered to maintain balance when the main profile view is shown. */}
            <View style={styles.headerButtonContainerLeft}>
-              {/* Show Add Business Button ONLY if user has ONLY a personal profile */}
-              {managerProfile && businessListings.length === 0 && (
-                 <Pressable style={[styles.button, styles.headerAddButton]} onPress={handleAddBusiness} hitSlop={10}>
-                     <Ionicons name="add-circle-outline" size={28} color="#007AFF" />
-                     <Text style={styles.addBusinessText}> Add Business</Text>
-                 </Pressable>
-              )}
-              {/* If user has NO personal profile (only business), show a placeholder or different button? */}
-              {!managerProfile && (
-                 <View style={{ width: 50 }} /> // Placeholder for balance
-              )}
+              {/* This placeholder ensures the title stays centered, balancing the right button area. */}
+              {/* Adjust width if needed based on the actual size of the right-side button/content. */}
+              <View style={{ width: 50 }} />
            </View>
+           {/* --- MODIFICATION END --- */}
 
-          {/* Display Name */}
-          <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">{displayName}</Text>
+          {/* Display Name */}
+          <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">{displayName}</Text>
 
-          {/* Edit/Settings Button Area */}
-          <View style={styles.headerButtonContainer}>
+          {/* Edit/Settings Button Area (Logic remains unchanged) */}
+          <View style={styles.headerButtonContainer}>
             {/* Show Edit Personal Profile Button if managerProfile exists */}
-            {managerProfile && (
-                <Pressable style={[styles.button, styles.headerButton]} onPress={handleEditManagerProfile} hitSlop={10}>
-                    <Ionicons name="person-circle-outline" size={24} color={"#FF6347"} style={{ marginRight: 5 }}/>
-                    <Text style={styles.buttonOutlineText}>Edit</Text>
-                </Pressable>
-            )}
-             {/* If no manager profile, show a different settings icon or placeholder */}
-            {!managerProfile && (
-                // Example: Link to business settings or just a placeholder
-                 <View style={{ width: 50 }} /> // Placeholder for balance
-                // <Pressable style={[styles.button, styles.headerButton]} onPress={() => {/* Navigate to Business Settings */}}>
-                //     <Ionicons name="settings-outline" size={24} color="#555"/>
-                // </Pressable>
+            {managerProfile && (
+                <Pressable style={[styles.button, styles.headerButton]} onPress={handleEditManagerProfile} hitSlop={10}>
+                    <Ionicons name="person-circle-outline" size={24} color={"#FF6347"} style={{ marginRight: 5 }}/>
+                    <Text style={styles.buttonOutlineText}>Edit</Text>
+                </Pressable>
             )}
-          </View>
-        </View>
+             {/* If no manager profile, show a placeholder to balance the header */}
+            {!managerProfile && (
+                 <View style={{ width: 50 }} /> // Placeholder for balance
+            )}
+          </View>
+        </View>
 
-        {/* --- Personal Profile Card Preview --- (Only if managerProfile exists) */}
-        {profileCardInput && (
-            <View style={styles.profileCardSection}>
-                <Text style={styles.sectionTitle}>My Personal Profile Preview</Text>
-                <ProfileCard profile={profileCardInput} />
+        {/* --- Personal Profile Card Preview --- (Only if managerProfile exists) */}
+        {/* --- This section remains unchanged --- */}
+        {profileCardInput && (
+            <View style={styles.profileCardSection}>
+                <Text style={styles.sectionTitle}>My Personal Profile Preview</Text>
+                <ProfileCard profile={profileCardInput} />
                 {/* Edit button could also go here, matching the header one */}
                 {/* <Pressable style={[styles.button, styles.buttonOutline, styles.editCardButton]} onPress={handleEditManagerProfile}>
                      <Ionicons name="pencil-outline" size={18} color="#FF6347" style={{ marginRight: 8 }}/>
                      <Text style={styles.buttonOutlineText}>Edit Personal Profile</Text>
                  </Pressable> */}
-            </View>
-        )}
+            </View>
+        )}
 
-        {/* --- Business Listings Section --- (Only if NO managerProfile exists and listings ARE present) */}
-        {!managerProfile && businessListings.length > 0 && (
-             <View style={styles.section}>
-               <Text style={styles.sectionTitle}>My Business Listings</Text>
-               <FlatList
-                    data={businessListings}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                       <View style={styles.listingItem}>
-                         <Text style={styles.listingName}>{item.business_name}</Text>
-                         <Text style={styles.listingCategory}>{item.category}</Text>
+        {/* --- Business Listings Section --- (Only if NO managerProfile exists and listings ARE present) */}
+        {/* --- This section remains unchanged, including the "Add Another Business" button --- */}
+        {!managerProfile && businessListings.length > 0 && (
+             <View style={styles.section}>
+               <Text style={styles.sectionTitle}>My Business Listings</Text>
+               <FlatList
+                    data={businessListings}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                        <View style={styles.listingItem}>
+                          <Text style={styles.listingName}>{item.business_name}</Text>
+                          <Text style={styles.listingCategory}>{item.category}</Text>
                         {/* Add address or other details if desired */}
                         {/* <Text style={styles.listingDetail}>{`${item.address_city || ''}${item.address_state ? `, ${item.address_state}` : ''}`}</Text> */}
-                       </View>
-                    )}
-                    style={styles.listingList}
-               />
+                        </View>
+                    )}
+                    style={styles.listingList}
+               />
                <View style={styles.businessActionsContainer}>
                   <Pressable style={[styles.button, styles.manageButton]} onPress={handleManageListings}>
-                         <Ionicons name="briefcase-outline" size={18} color="#fff" style={{ marginRight: 8 }}/>
-                         <Text style={styles.manageButtonText}>Manage Listings</Text>
-                   </Pressable>
+                      <Ionicons name="briefcase-outline" size={18} color="#fff" style={{ marginRight: 8 }}/>
+                      <Text style={styles.manageButtonText}>Manage Listings</Text>
+                   </Pressable>
+                   {/* handleAddBusiness is correctly used here */}
                    <Pressable style={[styles.button, styles.addBusinessButtonSection]} onPress={handleAddBusiness}>
                        <Ionicons name="add-circle-outline" size={20} color="#007AFF" style={{ marginRight: 8 }}/>
                        <Text style={styles.addBusinessButtonSectionText}>Add Another Business</Text>
                    </Pressable>
                 </View>
-             </View>
-        )}
+             </View>
+        )}
 
-        {/* Logout Button */}
-        <View style={styles.logoutContainer}>
-          <Pressable style={[styles.button, styles.buttonGhost]} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color="#6c757d" style={{ marginRight: 8 }}/>
-            <Text style={styles.buttonGhostText}>Log Out</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
+        {/* Logout Button (Remains unchanged) */}
+        <View style={styles.logoutContainer}>
+          <Pressable style={[styles.button, styles.buttonGhost]} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color="#6c757d" style={{ marginRight: 8 }}/>
+            <Text style={styles.buttonGhostText}>Log Out</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
       <Toast /> {/* Ensure Toast is rendered */}
-    </SafeAreaView>
-  );
+    </SafeAreaView>
+  );
 };
 
-// --- Styles --- (Update styles as needed)
+// --- Styles --- (Styles remain unchanged)
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#f8f9fa" },
   scrollView: { flex: 1 },
@@ -417,7 +418,8 @@ const styles = StyleSheet.create({
   headerButtonContainer: { flex: 1, alignItems: 'flex-end', justifyContent: 'center' },
   headerButtonContainerLeft: { flex: 1, alignItems: 'flex-start', justifyContent: 'center', },
   headerButton: { paddingVertical: 6, paddingHorizontal: 0, flexDirection: 'row', alignItems: 'center', borderWidth: 0, backgroundColor: 'transparent' }, // Removed horizontal padding
-  headerAddButton: { paddingVertical: 6, paddingHorizontal: 0, flexDirection: 'row', alignItems: 'center', borderWidth: 0, backgroundColor: 'transparent' }, // Consistent styling
+  // Style for the removed button - kept here in case needed elsewhere, or can be removed if truly unused.
+  headerAddButton: { paddingVertical: 6, paddingHorizontal: 0, flexDirection: 'row', alignItems: 'center', borderWidth: 0, backgroundColor: 'transparent' },
   addBusinessText: { color: '#007AFF', fontWeight: 'bold', fontSize: 14 },
   headerTitle: { fontSize: 22, fontWeight: "bold", color: "#333", textAlign: 'center', flex: 2.5, marginHorizontal: 5 }, // Increased flex slightly
   section: { marginHorizontal: 16, marginBottom: 24, padding: 16, backgroundColor: '#fff', borderRadius: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },

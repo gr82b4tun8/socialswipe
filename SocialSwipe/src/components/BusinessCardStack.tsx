@@ -1,82 +1,90 @@
 // components/BusinessCardStack.tsx
-import React from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import React, { useState } from 'react'; // <-- Import useState
+import {
+    View,
+    StyleSheet,
+    Dimensions,
+    TouchableOpacity, // <-- Import TouchableOpacity
+    Modal,          // <-- Import Modal
+    SafeAreaView,   // <-- Import SafeAreaView for modal content
+    Button,         // <-- Import Button for closing modal (or use custom component)
+} from 'react-native';
 import BusinessProfileCard, { BusinessListing } from './BusinessProfileCard'; // Adjust path
-// --- Import Individual Profile Card and its type ---
 import ProfileCard from './ProfileCard'; // Adjust path to your ProfileCard component
-// Assuming IndividualProfile type is defined elsewhere or imported correctly
 import { Profile as IndividualProfile } from '../screens/EditProfileScreen'; // Example Import - Adjust path/type name
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 // --- Constants for Horizontal Stacking ---
-const CARD_HORIZONTAL_OFFSET = 9;
+// --- ADJUSTED: Reduced offset to make cards stick out less ---
+const CARD_HORIZONTAL_OFFSET = -26; // Previous: 9. Adjust this value as needed (e.g., 3, 5, or even 0 or negative)
 const CARD_SCALE_DIFF = 0.03;
-const MAX_BEHIND_CARDS = 5; // Max liker profile cards to show
+const MAX_BEHIND_CARDS = 5;
 
 interface BusinessCardStackProps {
-    topListing: BusinessListing | null; // Allow null if stack can be empty
+    topListing: BusinessListing | null;
     onLikeBusiness: (managerUserId: string, listingId: string) => void;
     onDismissBusiness: (managerUserId: string, listingId: string) => void;
-
-    // --- New Prop: Array of Liker Profiles ---
-    /** An array of individual user profiles who liked the topListing */
-    likerProfiles?: IndividualProfile[]; // Array of profiles to display behind
+    likerProfiles?: IndividualProfile[];
 }
 
 const BusinessCardStack: React.FC<BusinessCardStackProps> = ({
     topListing,
     onLikeBusiness,
     onDismissBusiness,
-    // --- Destructure new prop, default to empty array ---
     likerProfiles = [],
 }) => {
+    // --- State for managing the selected profile for modal view ---
+    const [selectedProfile, setSelectedProfile] = useState<IndividualProfile | null>(null);
 
-    // Determine how many liker cards to actually render based on MAX_BEHIND_CARDS
     const cardsToRenderCount = Math.min(likerProfiles.length, MAX_BEHIND_CARDS);
+
+    // --- Function to handle opening the modal ---
+    const handleProfilePress = (profile: IndividualProfile) => {
+        setSelectedProfile(profile);
+    };
+
+    // --- Function to handle closing the modal ---
+    const handleCloseModal = () => {
+        setSelectedProfile(null);
+    };
 
     const renderLikerProfileCards = () => {
         const behindCards = [];
         if (cardsToRenderCount <= 0) return null;
 
-        // Loop through the liker profiles that we need to render (up to the limit)
-        // We loop backwards so the first profile in the array is closest behind (highest zIndex)
         for (let i = cardsToRenderCount - 1; i >= 0; i--) {
             const profileToShow = likerProfiles[i];
-
-            // Calculate position: profile at index 0 is 1st behind, index 1 is 2nd behind, etc.
             const positionBehind = i + 1;
-
             const scale = 1 - positionBehind * CARD_SCALE_DIFF;
             const translateX = positionBehind * CARD_HORIZONTAL_OFFSET;
-            // ZIndex: closest behind (i=0 => positionBehind=1) has highest zIndex
             const zIndex = MAX_BEHIND_CARDS - positionBehind + 1;
 
-
             behindCards.push(
-                <View
-                    // Use a unique key, like the user_id from the profile
+                // --- Use TouchableOpacity to make the card pressable ---
+                <TouchableOpacity
+                    // Apply key to the TouchableOpacity now
                     key={profileToShow.user_id || `liker-card-${i}`}
                     style={[
-                        styles.cardBase, // Base size, position, shadow
-                        // Wrapper MUST be transparent so ProfileCard's background shows
-                        { backgroundColor: 'transparent' },
+                        styles.cardBase,
+                        { backgroundColor: 'transparent' }, // Wrapper is transparent
                         {
                             transform: [{ translateX }, { scale }],
                             zIndex: zIndex,
                         },
                     ]}
+                    // --- Handle press event ---
+                    onPress={() => handleProfilePress(profileToShow)}
+                    activeOpacity={0.8} // Optional: visual feedback on press
                 >
-                    {/* Render the actual ProfileCard component */}
+                    {/* Render the actual ProfileCard component inside */}
                     <ProfileCard
                         profile={profileToShow}
-                        isBehindCard={true} // Optional prop
-                        // Add any other necessary props for ProfileCard
+                        isBehindCard={true} // Keep this prop if ProfileCard uses it for styling
                     />
-                </View>
+                </TouchableOpacity>
             );
         }
-        // The loop adds cards from furthest to closest, so the order in the array is correct for rendering.
         return behindCards;
     };
 
@@ -87,59 +95,102 @@ const BusinessCardStack: React.FC<BusinessCardStackProps> = ({
 
             {/* Render the main interactive Business card on top */}
             {topListing ? (
-                // Wrapper for the top card (size, position, shadow)
                 <View
                     style={[
-                        styles.cardBase, // Use base for size/position/shadow
-                        // Background transparent, BusinessProfileCard handles its own background
+                        styles.cardBase,
                         { zIndex: MAX_BEHIND_CARDS + 1, backgroundColor: 'transparent' }
                     ]}
+                    // Prevent clicks on the area behind the main card from triggering underlying touchables
+                    pointerEvents="box-none"
                 >
                     <BusinessProfileCard
                         listing={topListing}
-                         // Pass listing ID along with manager ID
                         onLikeBusiness={() => onLikeBusiness(topListing.manager_user_id, topListing.id)}
                         onDismissBusiness={() => onDismissBusiness(topListing.manager_user_id, topListing.id)}
                     />
                 </View>
-            ) : (
-                 // Optional: Render something when the stack is empty
-                 null
-            )
-            }
+            ) : null}
+
+            {/* --- Modal for displaying selected profile --- */}
+            <Modal
+                animationType="slide" // Or 'fade', 'none'
+                transparent={false}    // Set to false for a full background
+                visible={selectedProfile !== null} // Show modal when a profile is selected
+                onRequestClose={handleCloseModal} // Handle back button press on Android
+            >
+                {/* Use SafeAreaView to avoid notches/status bars */}
+                <SafeAreaView style={styles.modalContainer}>
+                    <View style={styles.modalContent}>
+                        {/* Render the full ProfileCard - maybe without specific 'behind' styling */}
+                        {selectedProfile && (
+                            <ProfileCard
+                                profile={selectedProfile}
+                                isBehindCard={false} // Ensure it uses standard display style
+                                // You might need a different/larger version of ProfileCard here
+                                // or pass props to adjust its appearance for full screen.
+                            />
+                        )}
+                        {/* Add a button or touchable to close the modal */}
+                        <Button title="Close" onPress={handleCloseModal} />
+                         {/* Alternative: Close button using TouchableOpacity
+                         <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
+                             <Text style={styles.closeButtonText}>Close</Text>
+                         </TouchableOpacity>
+                         */}
+                    </View>
+                </SafeAreaView>
+            </Modal>
         </View>
     );
 };
 
-// --- Styles (Keep existing styles) ---
+// --- Styles ---
 const styles = StyleSheet.create({
     stackContainer: {
         flex: 1,
         position: 'relative',
-        overflow: 'visible', // Allow transforms/shadows outside bounds
-        alignItems: 'center', // Center stack horizontally if needed
-        justifyContent: 'center', // Center stack vertically if needed
+        overflow: 'visible',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     cardBase: {
-        // Defines size, position, shape, and shadow for ALL cards/wrappers
         position: 'absolute',
-        width: '90%', // Example: Use percentage of container
-        height: '90%', // Example: Use percentage of container
-        alignSelf: 'center', // Ensure absolute positioned items are centered
-        borderRadius: 16, // Shape defined here
+        width: '90%',
+        height: '90%',
+        alignSelf: 'center',
+        borderRadius: 16,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 4,
         elevation: 5,
-        // Default background is removed - let components define it
     },
-    // placeholderCard style is no longer used in renderLikerProfileCards
-    // Keep it if you might use it elsewhere or as a fallback
-    placeholderCard: {
-        backgroundColor: '#EE4B2B',
-        borderRadius: 16,
+    // --- Styles for the Modal ---
+    modalContainer: {
+        flex: 1,
+        backgroundColor: 'white', // Or your app's background color
     },
+    modalContent: {
+        flex: 1,
+        alignItems: 'center', // Center profile card horizontally
+        justifyContent: 'center', // Center profile card vertically (adjust as needed)
+        padding: 20, // Add some padding around the content
+    },
+    // --- Optional: Styles for a custom close button ---
+    /*
+    closeButton: {
+        marginTop: 20,
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        backgroundColor: '#cccccc',
+        borderRadius: 8,
+    },
+    closeButtonText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    */
+    // placeholderCard style is no longer used/needed based on current logic
 });
 
 export default BusinessCardStack;

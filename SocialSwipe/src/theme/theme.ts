@@ -118,7 +118,7 @@ export const lightTheme: AppTheme = {
   colors: {
     primary: '#A7C7E7',       // Your lighter blue for main actions
     secondary: '#549be3',     // Your darker blue as secondary accent
-    background: '#549be3',    // Light gray background
+    background: '#000014',    // Light gray background
     card: '#003575',          // White cards
     text: '#1F2937',          // Dark gray text
     textSecondary: '#6B7280', // Medium gray text
