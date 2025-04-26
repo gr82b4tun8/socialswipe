@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
         flex: 1, // Crucial: Makes this View fill its parent (the sized wrapper in CardStack)
         borderRadius: 16, // Apply border radius here
         overflow: 'hidden', // Clip children (ImageBackground, ScrollView) to the rounded corners
-        backgroundColor: '#1fb7f0', // Card background color
+        backgroundColor: '#fff', // Card background color
         flexDirection: 'column', // Explicitly column
         justifyContent: 'space-between', // Push buttons to bottom if details aren't shown/take less space
     },
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
         marginBottom: 6,
     },
     categoryBadge: {
-        backgroundColor: 'rgba(98, 92, 184, 0.25)',
+        backgroundColor: 'rgba(255, 255, 255, 0.25)',
     },
     categoryBadgeText: {
         fontSize: 12,

@@ -52,7 +52,7 @@ const DiscoverScreen: React.FC = () => {
             try {
                 console.log(`[DiscoverScreen] Fetching likes for Listing ID: ${currentListing.id}`);
 
-                // 1. Fetch liker_user_ids from profile_likes table
+                // 1. Fetch liker_user_ids from profile_like table
                 const { data: likeData, error: likeError } = await supabase
                     .from('profile_likes')
                     .select('liker_user_id')
