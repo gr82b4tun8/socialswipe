@@ -17,7 +17,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 // --- Constants for Horizontal Stacking ---
 // --- ADJUSTED: Reduced offset to make cards stick out less ---
-const CARD_HORIZONTAL_OFFSET = -24; // Previous: 9. Adjust this value as needed (e.g., 3, 5, or even 0 or negative)
+const CARD_HORIZONTAL_OFFSET = -10; // Previous: 9. Adjust this value as needed (e.g., 3, 5, or even 0 or negative)
 const CARD_SCALE_DIFF = 0.03;
 const MAX_BEHIND_CARDS = 5;
 

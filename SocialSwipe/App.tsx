@@ -1,19 +1,20 @@
-// App.tsx (Theming Tab Scene Container & Added Conversations Tab)
+// App.tsx (Theming Tab Scene Container & Persistent Custom Header)
 
 // IMPORTANT: react-native-gesture-handler import must be at the very top
 import 'react-native-get-random-values';
 import 'react-native-gesture-handler';
 import React from 'react';
-import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Text, TouchableOpacity } from 'react-native'; // Added TouchableOpacity
 import {
     NavigationContainer,
     NavigatorScreenParams,
     DefaultTheme as NavigationDefaultTheme,
-    DarkTheme as NavigationDarkTheme
+    DarkTheme as NavigationDarkTheme,
+    useNavigation // Added useNavigation hook import
 } from '@react-navigation/native';
-import { createNativeStackNavigator, NativeStackNavigationOptions } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { createNativeStackNavigator, NativeStackNavigationOptions, NativeStackHeaderProps } from '@react-navigation/native-stack';
+import { createBottomTabNavigator, BottomTabHeaderProps } from '@react-navigation/bottom-tabs'; // Added BottomTabHeaderProps
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -21,6 +22,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext'; // Adjust path if needed
 import { DiscoveryProvider } from './src/contexts/DiscoveryContext'; // Adjust path if needed
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext'; // Adjust path if needed
+import { LinearGradient } from 'expo-linear-gradient'; // Import LinearGradient (already added)
 
 // --- Import Screens ---
 import AuthPage from './src/pages/AuthPage';
@@ -37,6 +39,7 @@ import ConversationsScreen from './src/pages/ConversationsScreen'; // Adjust pat
 import { Ionicons } from '@expo/vector-icons';
 
 // --- Type Definitions for Navigation ---
+// Unchanged Type Definitions...
 type AuthStackParamList = { Login: undefined; SignUp: undefined; };
 type OnboardingStackParamList = { CreateProfile: undefined; CreateBusinessProfileScreen: undefined; };
 type MainTabParamList = {
@@ -68,17 +71,15 @@ const MainTabNav = createBottomTabNavigator<MainTabParamList>();
 const RootStackNav = createNativeStackNavigator<RootStackParamList>();
 
 
-// --- Placeholder Screens ---
+// --- Placeholder Screens (Keep as is) ---
 function NotificationsScreen() { return <View style={styles.screen}><Text>Notifications Screen</Text></View>; }
 function ChatRoomScreen({ route }: any) {
     const { roomId, recipientName } = route.params;
-    // *** ADDED: Basic theme check for placeholder styling ***
     const { theme } = useTheme();
     const screenStyle = theme ? { backgroundColor: theme.colors.background, flex: 1, justifyContent: 'center', alignItems: 'center' } : styles.screen;
     const textStyle = theme ? { color: theme.colors.text } : {};
     return (
         <View style={screenStyle}>
-            <Text style={textStyle}>Chat Room Screen</Text>
             <Text style={textStyle}>Room ID: {roomId}</Text>
             <Text style={textStyle}>Chatting with: {recipientName}</Text>
         </View>
@@ -86,11 +87,73 @@ function ChatRoomScreen({ route }: any) {
 }
 
 
+// --- Custom App Header Component --- (Gradient already applied)
+function AppHeader({ navigation, route, options }: NativeStackHeaderProps | BottomTabHeaderProps) {
+    const { theme } = useTheme();
+    const insets = useSafeAreaInsets();
+    const canGoBack = navigation.canGoBack();
+
+    // Get gradient config from theme for header (assuming it's named 'primaryHeader')
+    const headerGradientConfig = theme?.gradients?.primaryHeader;
+    // Determine if we should use the gradient
+    const useGradientHeader = !theme?.isDark && !!headerGradientConfig;
+
+    if (!theme) return null;
+
+    const HeaderContainerComponent = useGradientHeader ? LinearGradient : View;
+    const headerProps = useGradientHeader ? headerGradientConfig : {};
+
+
+    return (
+        <HeaderContainerComponent
+            {...headerProps} // Spread colors, start, end from theme if using gradient
+            style={[
+                styles.headerContainer,
+                {
+                    backgroundColor: !useGradientHeader ? theme.colors.headerBackground : undefined, // Fallback bg color
+                    paddingTop: insets.top,
+                    height: (theme.header?.height || 60) + insets.top,
+                }
+            ]}
+        >
+            <View style={styles.headerContent}>
+                {canGoBack && (
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <Ionicons
+                            name="chevron-back"
+                            size={theme.fonts?.sizes?.xxLarge || 28}
+                            color={theme.colors.headerText}
+                        />
+                    </TouchableOpacity>
+                )}
+                 {!canGoBack && <View style={styles.backButtonPlaceholder} />}
+                <Text
+                    style={[
+                        styles.headerTitle,
+                        {
+                            color: theme.colors.headerText,
+                            fontSize: theme.fonts?.sizes?.xxLarge || 24,
+                            fontWeight: 'bold',
+                        }
+                    ]}
+                    numberOfLines={1}
+                >
+                    Sphere
+                </Text>
+                 <View style={styles.rightSpacer} />
+            </View>
+        </HeaderContainerComponent>
+    );
+}
+// --- End Custom App Header Component ---
+
+
 // --- Navigator Components ---
 
 // AuthStack (Keep as is)
 function AuthStack() {
-    return (
+    // ... (no changes)
+     return (
         <AuthStackNav.Navigator screenOptions={{ headerShown: false }}>
             <AuthStackNav.Screen name="Login" component={AuthPage} />
             <AuthStackNav.Screen name="SignUp" component={CreateAccount} />
@@ -98,26 +161,15 @@ function AuthStack() {
     );
 }
 
-// OnboardingStack (Added theme check)
+// OnboardingStack (Keep as is)
 function OnboardingStack({ initialRouteName }: { initialRouteName?: keyof OnboardingStackParamList }) {
+    // ... (no changes)
     const { theme } = useTheme();
-
-    // *** ADDED: Return loading or null if theme is not ready ***
-    if (!theme) {
-        return (
-            <View style={styles.screen}>
-                <ActivityIndicator />
-            </View>
-        ); // Or return null
-    }
-
+    if (!theme) { return <View style={styles.screen}><ActivityIndicator /></View>; }
     const screenOptions: NativeStackNavigationOptions = {
-        headerShown: true,
-        headerBackVisible: false,
-        gestureEnabled: false,
+        headerShown: true, headerBackVisible: false, gestureEnabled: false,
         headerStyle: { backgroundColor: theme.colors.headerBackground },
         headerTintColor: theme.colors.headerText,
-        // headerTitleStyle: { fontFamily: theme.fonts.families.bold }, // Uncomment if defined
         contentStyle: { backgroundColor: theme.colors.background },
     };
     const finalInitialRoute = initialRouteName || 'CreateProfile';
@@ -129,47 +181,70 @@ function OnboardingStack({ initialRouteName }: { initialRouteName?: keyof Onboar
     );
 }
 
-// --- MainTabs MODIFIED (Added theme check) ---
+// --- MainTabs --- MODIFIED (Apply conditional gradient TabBar background)
 function MainTabs() {
-    const { theme } = useTheme();
+    const { theme } = useTheme(); // Get theme here
 
-    // *** ADDED: Return loading or null if theme is not ready ***
     if (!theme) {
          return (
             <View style={styles.screen}>
                 <ActivityIndicator />
             </View>
-        ); // Or return null
+        );
     }
+
+    // Get the gradient config for the tab bar ONCE outside screenOptions
+    const tabBarGradientConfig = theme.gradients?.tabBarBackground;
+    // Determine if we should use the gradient (light theme AND gradient config exists)
+    const useGradientTabBar = !theme.isDark && !!tabBarGradientConfig;
 
     return (
         <MainTabNav.Navigator
             sceneContainerStyle={{ backgroundColor: theme.colors.background }}
             screenOptions={({ route }) => ({
-                headerShown: false,
+                headerShown: false, // No header for individual tabs
                 tabBarActiveTintColor: theme.colors.primary,
                 tabBarInactiveTintColor: theme.colors.textSecondary,
                 tabBarStyle: {
-                    backgroundColor: theme.colors.card,
-                    borderTopColor: theme.colors.border,
+                    // Remove backgroundColor - background is now handled by tabBarBackground prop
+                    // backgroundColor: theme.colors.card,
+                    borderTopColor: theme.colors.border, // Keep border color
                 },
                 tabBarIcon: ({ focused, color, size }) => {
+                    // Icon logic remains the same
                     let iconName: keyof typeof Ionicons.glyphMap = 'alert-circle-outline';
-                    if (route.name === 'DiscoverTab') {
-                        iconName = focused ? 'search' : 'search-outline';
-                    } else if (route.name === 'EventsTab') {
-                        iconName = focused ? 'heart' : 'heart-outline';
-                    } else if (route.name === 'ConversationsTab') {
-                        iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
-                    } else if (route.name === 'ProfileTab') {
-                        iconName = focused ? 'person' : 'person-outline';
-                    } else if (route.name === 'NotificationsTab') {
-                        iconName = focused ? 'notifications' : 'notifications-outline';
-                    }
+                    if (route.name === 'DiscoverTab') iconName = focused ? 'search' : 'search-outline';
+                    else if (route.name === 'EventsTab') iconName = focused ? 'heart' : 'heart-outline';
+                    else if (route.name === 'ConversationsTab') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+                    else if (route.name === 'ProfileTab') iconName = focused ? 'person' : 'person-outline';
+                    else if (route.name === 'NotificationsTab') iconName = focused ? 'notifications' : 'notifications-outline';
                     return <Ionicons name={iconName} size={size} color={color} />;
                 },
+                // *** ADDED: tabBarBackground prop ***
+                tabBarBackground: () => {
+                    // Check if we should use the gradient (calculated above)
+                    if (useGradientTabBar && tabBarGradientConfig) {
+                        // Render the gradient if applicable
+                        return (
+                            <LinearGradient
+                                {...tabBarGradientConfig} // Spread colors, start, end from theme
+                                style={StyleSheet.absoluteFill} // Fill the tab bar area
+                            />
+                        );
+                    } else {
+                        // Otherwise, render a plain View with the fallback card color
+                        // This ensures dark mode uses its solid background color
+                        return (
+                            <View style={{
+                                flex: 1,
+                                backgroundColor: theme.colors.card // Use card color from theme
+                            }} />
+                        );
+                    }
+                }, // --- End tabBarBackground ---
             })}
         >
+            {/* Screens remain the same */}
             <MainTabNav.Screen name="DiscoverTab" component={DiscoverScreen} options={{ title: 'Discover' }} />
             <MainTabNav.Screen name="EventsTab" component={EventsScreen} options={{ title: 'Liked Profiles' }} />
             <MainTabNav.Screen name="ConversationsTab" component={ConversationsScreen} options={{ title: 'Messages' }} />
@@ -180,51 +255,42 @@ function MainTabs() {
 }
 // --- End MainTabs Modification ---
 
-// RootStack (MODIFIED - Added theme check)
+// --- RootStack --- (Kept as is - applies custom header globally)
 function RootStack() {
-    const { theme } = useTheme();
+    // ... (no changes)
+     const { theme } = useTheme();
 
-    // *** ADDED: Return loading or null if theme is not ready ***
     if (!theme) {
          return (
             <View style={styles.screen}>
                 <ActivityIndicator />
             </View>
-        ); // Or return null
+        );
     }
 
     return (
         <RootStackNav.Navigator
             screenOptions={{
-                contentStyle: { backgroundColor: theme.colors.background },
-                headerStyle: { backgroundColor: theme.colors.headerBackground },
-                headerTintColor: theme.colors.headerText,
-                // headerTitleStyle: { fontFamily: theme.fonts.families.bold, fontSize: theme.fonts.sizes.large }, // Uncomment if defined
-                headerBackTitleVisible: false,
+                header: (props) => <AppHeader {...props} />,
             }}
         >
-            <RootStackNav.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
-            <RootStackNav.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
-            <RootStackNav.Screen name="CreateProfile" component={CreateProfile} options={{ title: 'Create Personal Profile' }} />
-            <RootStackNav.Screen name="CreateBusinessProfileScreen" component={CreateBusinessProfileScreen} options={{ title: 'Create Business Profile' }} />
-            <RootStackNav.Screen
-                name="ChatRoomScreen"
-                component={ChatRoomScreen}
-                options={({ route }) => ({ title: route.params.recipientName ?? 'Chat' })}
-            />
+            <RootStackNav.Screen name="Main" component={MainTabs}/>
+            <RootStackNav.Screen name="EditProfile" component={EditProfileScreen}/>
+            <RootStackNav.Screen name="CreateProfile" component={CreateProfile}/>
+            <RootStackNav.Screen name="CreateBusinessProfileScreen" component={CreateBusinessProfileScreen}/>
+            <RootStackNav.Screen name="ChatRoomScreen" component={ChatRoomScreen}/>
         </RootStackNav.Navigator>
     );
 }
+// --- End RootStack ---
 
 
-// --- AppContent (MODIFIED - Added theme check) ---
+// --- AppContent (Kept as is) ---
 function AppContent() {
+    // ... (no changes)
     const { session, loadingAuth } = useAuth();
-    const { theme } = useTheme(); // Get theme for loading indicator
-
-    // *** ADDED: Check for theme here as well, before rendering Auth/Root stack ***
-    if (loadingAuth || !theme) { // Also wait for theme
-        // Use a default background color if theme isn't available yet
+    const { theme } = useTheme();
+    if (loadingAuth || !theme) {
         const loadingBackgroundColor = theme ? theme.colors.background : '#FFFFFF';
         return (
             <View style={[styles.screen, { backgroundColor: loadingBackgroundColor }]}>
@@ -232,14 +298,7 @@ function AppContent() {
             </View>
         );
     }
-
-    // Determine if user needs onboarding (simplified check)
-    const needsOnboarding = session?.user && !session.user.user_metadata?.has_completed_onboarding;
-
     if (session && session.user) {
-        // if (needsOnboarding) {
-        //     return <OnboardingStack initialRouteName="CreateProfile" />;
-        // }
         return <RootStack />;
     } else {
         return <AuthStack />;
@@ -250,6 +309,7 @@ function AppContent() {
 
 // --- Main App Component --- (Keep as is)
 export default function App() {
+    // ... (no changes)
     return (
         <ThemeProvider>
             <AppWithTheme />
@@ -257,48 +317,23 @@ export default function App() {
     );
 }
 
-// --- Helper component to access theme for Root View and Navigation --- (MODIFIED - Added theme check)
+// --- Helper component to access theme for Root View and Navigation --- (Keep as is - background handled separately if needed)
 function AppWithTheme() {
-    const { theme } = useTheme();
-
-    // *** ADDED: Check if theme is loaded before configuring navigation/rendering ***
-    if (!theme) {
-        // Render a minimal loading state or null while theme is loading
-        // Avoid accessing theme properties here if theme is undefined
-        return (
-            <View style={styles.screen}>
-                <ActivityIndicator size="large" />
-            </View>
-        );
-        // Alternatively, you could return null, but a loading indicator is often better UX.
-        // return null;
-    }
-
-    // Now that theme is guaranteed to exist, proceed with configuration
+    // ... (no changes needed here for tab bar gradient)
+     const { theme } = useTheme();
+    if (!theme) { return <View style={styles.screen}><ActivityIndicator size="large" /></View>; }
     const navigationTheme = React.useMemo(() => {
         const navTheme = theme.isDark ? NavigationDarkTheme : NavigationDefaultTheme;
         return {
-            ...navTheme,
-            colors: {
-                ...navTheme.colors,
-                primary: theme.colors.primary,
-                background: theme.colors.background,
-                card: theme.colors.card,
-                text: theme.colors.text,
-                border: theme.colors.border,
-                // notification: theme.colors.notification, // Uncomment if defined
-            },
+            ...navTheme, colors: { ...navTheme.colors, primary: theme.colors.primary, background: theme.colors.background, card: theme.colors.card, text: theme.colors.text, border: theme.colors.border },
         };
-    // Add theme to dependency array to recalculate when theme changes
     }, [theme]);
-
     return (
-        // Apply theme background to the outermost view possible
+        // Using standard background color here. Root background gradient applied separately if desired.
         <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.colors.background }}>
             <SafeAreaProvider>
                 <AuthProvider>
                     <DiscoveryProvider>
-                        {/* NavigationContainer now receives a valid theme */}
                         <NavigationContainer theme={navigationTheme}>
                             <AppContent />
                         </NavigationContainer>
@@ -312,11 +347,16 @@ function AppWithTheme() {
 // --- End AppWithTheme ---
 
 
-// --- Basic Styles --- (Keep as is)
+// --- Styles --- (Keep as is)
 const styles = StyleSheet.create({
-    screen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }, // Added default background
+    screen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
+    headerContainer: { /* ... */ justifyContent: 'center', },
+    headerContent: { /* ... */ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, flex: 1, backgroundColor: 'transparent', },
+    backButton: { /* ... */ padding: 5, marginRight: 10, },
+    backButtonPlaceholder: { /* ... */ width: (28 + 5*2 + 10), },
+    headerTitle: { /* ... */ flex: 1, textAlign: 'left', },
+    rightSpacer: { /* ... */ width: (28 + 5*2 + 10), }
 });
 
 // Export RootStackParamList for use in other components
 export type { RootStackParamList };
-

@@ -194,10 +194,10 @@ const getThemedStyles = (theme: AppTheme) => StyleSheet.create({
         width: '100%',
     },
     cardContainer: {
-        width: '90%',
-        height: '90%',
-        maxWidth: 400,
-        maxHeight: 700,
+        width: '98%',
+        height: '98%',
+        maxWidth: 450,
+        maxHeight: 775,
         position: 'relative', // Needed if using absolute positioning for indicator
     },
     // Optional style for liker loading indicator

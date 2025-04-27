@@ -1,114 +1,79 @@
 // src/theme/theme.ts
-import { TextStyle } from 'react-native'; // Import TextStyle for font weights
+import { TextStyle } from 'react-native';
 
-// Define the structure for your colors
+// --- Interfaces (Colors, Fonts, Spacing) ---
 interface Colors {
-  primary: string;        // Main interactive color (buttons, links)
-  secondary: string;      // Secondary accent color
-  background: string;     // Screen background
-  card: string;           // Card background (slightly different from screen bg)
-  text: string;           // Primary text color
-  textSecondary: string;  // Lighter/dimmed text color
-  border: string;         // Border color for inputs, dividers etc.
-  accent: string;         // Extra accent color (optional)
-  success: string;        // Success feedback color
-  error: string;          // Error feedback color
-  warning: string;        // Warning feedback color
-  headerBackground: string; // Background for headers/nav bars
-  headerText: string;     // Text color for headers/nav bars
-  buttonText: string;     // Text color for primary buttons
-  // Add more specific colors as needed (e.g., disabled, placeholder)
+  primary: string;
+  secondary: string;
+  background: string;
+  card: string;
+  text: string;
+  textSecondary: string;
+  border: string;
+  accent: string;
+  success: string;
+  error: string;
+  warning: string;
+  headerBackground: string;
+  headerText: string;
+  buttonText: string;
 }
 
-// Define the structure for fonts
 interface Fonts {
-  families: {
-    regular: string; // Font family name (ensure it's linked/available)
-    bold: string;
-    // Add more (e.g., light, medium, italic) if needed
-  };
-  sizes: {
+  families: { regular: string; bold: string; };
+  sizes: { // Contains '.large'
     caption: number;
     small: number;
-    medium: number; // Standard body text
-    large: number;
-    xlarge: number; // Titles
-    xxlarge: number; // Main headings
+    medium: number;
+    large: number; // Property 'large' defined here
+    xlarge: number;
+    xxlarge: number;
   };
-  weights: {
-      // Use string values compatible with TextStyle['fontWeight']
-      light: '300';
-      regular: '400' | 'normal';
-      medium: '500';
-      bold: '700' | 'bold';
-  }
+  weights: { light: '300'; regular: '400' | 'normal'; medium: '500'; bold: '700' | 'bold'; }
 }
 
-// Define spacing units
-interface Spacing {
-  xxs: number; // 4
-  xs: number;  // 8
-  sm: number;  // 12
-  md: number;  // 16 (standard margin/padding)
-  lg: number;  // 24
-  xl: number;  // 32
-  xxl: number; // 48
+interface Spacing { /* ... */ } // Defines 'lg', not 'large'
+
+// --- GradientConfig Interface ---
+interface GradientConfig {
+  colors: string[];
+  start?: { x: number; y: number };
+  end?: { x: number; y: number };
+  locations?: number[];
 }
 
-// Define the overall Theme interface
+// --- AppTheme Interface ---
 export interface AppTheme {
-  isDark: boolean; // Flag to easily check theme type
+  isDark: boolean;
   colors: Colors;
-  fonts: Fonts;
-  spacing: Spacing;
-  borderRadius: {
+  fonts: Fonts; // Non-optional, expected to be present
+  spacing: Spacing; // Non-optional, expected to be present
+  borderRadius: { // Non-optional, expected to be present and contains '.large'
       small: number;
       medium: number;
-      large: number;
-      xlarge: number; // For cards etc.
+      large: number; // Property 'large' defined here
+      xlarge: number;
   };
-  // You could add more complex shared styles here later
-  // e.g., buttonVariants: { primary: ButtonStyle, secondary: ButtonStyle }
+  gradients?: { // Optional gradients property
+      primaryHeader?: GradientConfig;
+      screenBackground?: GradientConfig;
+      tabBarBackground?: GradientConfig;
+      [key: string]: GradientConfig | undefined;
+  };
 }
 
-// --- Base Theme Properties (Shared between light/dark) ---
-// Define fonts, spacing, border radius once to avoid duplication
+// --- Base Theme Properties ---
+// These objects are fully defined and assigned below
 const baseFonts: Fonts = {
-  families: {
-    regular: 'System', // Use system default or replace with your custom font name
-    bold: 'System',    // Use system default or replace with your custom bold font name
-  },
-  sizes: {
-    caption: 10,
-    small: 12,
-    medium: 14,
-    large: 18,
-    xlarge: 24,
-    xxlarge: 32,
-  },
-  weights: {
-    light: '300',
-    regular: '400',
-    medium: '500',
-    bold: '700',
-  }
+  families: { regular: 'System', bold: 'System' },
+  sizes: { caption: 10, small: 12, medium: 14, large: 18, xlarge: 24, xxlarge: 32 },
+  weights: { light: '300', regular: '400', medium: '500', bold: '700' }
 };
 
-const baseSpacing: Spacing = {
-  xxs: 4,
-  xs: 8,
-  sm: 12,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  xxl: 48,
-};
+const baseSpacing: Spacing = { xxs: 4, xs: 8, sm: 12, md: 16, lg: 24, xl: 32, xxl: 48 };
 
-const baseBorderRadius = {
-  small: 4,
-  medium: 8,
-  large: 12, // Good for buttons/inputs
-  xlarge: 16, // Good for cards
+const baseBorderRadius = { // Defines '.large'
+  small: 4, medium: 8, large: 12, xlarge: 16
 };
 
 
@@ -116,46 +81,52 @@ const baseBorderRadius = {
 export const lightTheme: AppTheme = {
   isDark: false,
   colors: {
-    primary: '#A7C7E7',       // Your lighter blue for main actions
-    secondary: '#549be3',     // Your darker blue as secondary accent
-    background: '#000014',    // Light gray background
-    card: '#003575',          // White cards
-    text: '#1F2937',          // Dark gray text
-    textSecondary: '#6B7280', // Medium gray text
-    border: '#D1D5DB',        // Light gray border
-    accent: '#F59E0B',        // Example: Amber accent
-    success: '#10B981',       // Example: Green
-    error: '#EF4444',         // Example: Red
-    warning: '#FBBF24',       // Example: Yellow/Orange
-    headerBackground: '#081c44', // Use the darker blue for header
-    headerText: '#FFFFFF',    // White text on dark header
-    buttonText: '#FFFFFF',    // White text on primary buttons
+    primary: '#A7C7E7',
+    secondary: '#549be3',
+    background: '#F9FAFB',
+    card: '#FFFFFF',
+    text: '#1F2937',
+    textSecondary: '#6B7280',
+    border: '#D1D5DB',
+    accent: '#F59E0B',
+    success: '#10B981',
+    error: '#EF4444',
+    warning: '#FBBF24',
+    headerBackground: '#FFFFFF',
+    headerText: '#1F2937',
+    buttonText: '#FFFFFF',
   },
-  fonts: baseFonts,
-  spacing: baseSpacing,
-  borderRadius: baseBorderRadius,
+  fonts: baseFonts, // Assigns the fully defined baseFonts object
+  spacing: baseSpacing, // Assigns the fully defined baseSpacing object
+  borderRadius: baseBorderRadius, // Assigns the fully defined baseBorderRadius object
+  gradients: {
+      primaryHeader: { colors: ['red', 'yellow'], start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
+      screenBackground: { colors: ['#E0F2FE', '#FFFFFF'], start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } },
+      tabBarBackground: { colors: ['red', 'yellow'], start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
+  },
 };
 
 // --- Dark Theme Definition ---
 export const darkTheme: AppTheme = {
   isDark: true,
   colors: {
-    primary: '#003575',       // Adjusted lighter blue for better contrast on dark
-    secondary: '#081c44',     // Darker blue remains secondary
-    background: '#111827',    // Very dark gray/blue background
-    card: '#1F2937',          // Dark gray cards
-    text: '#F9FAFB',          // Off-white text
-    textSecondary: '#9CA3AF', // Lighter gray text
-    border: '#374151',        // Darker gray border
-    accent: '#F59E0B',        // Amber accent can often work on dark too
-    success: '#34D399',       // Brighter green
-    error: '#F87171',         // Brighter red
-    warning: '#FCD34D',       // Brighter yellow/orange
-    headerBackground: '#081c44', // Dark blue header remains same
-    headerText: '#FFFFFF',    // White text on dark header
-    buttonText: '#FFFFFF',    // White text on primary buttons
+    primary: '#003575',
+    secondary: '#081c44',
+    background: '#111827',
+    card: '#1F2937',
+    text: '#F9FAFB',
+    textSecondary: '#9CA3AF',
+    border: '#374151',
+    accent: '#F59E0B',
+    success: '#34D399',
+    error: '#F87171',
+    warning: '#FCD34D',
+    headerBackground: '#081c44',
+    headerText: '#FFFFFF',
+    buttonText: '#FFFFFF',
   },
-  fonts: baseFonts,
-  spacing: baseSpacing,
-  borderRadius: baseBorderRadius,
+  fonts: baseFonts, // Assigns the fully defined baseFonts object
+  spacing: baseSpacing, // Assigns the fully defined baseSpacing object
+  borderRadius: baseBorderRadius, // Assigns the fully defined baseBorderRadius object
+  // No gradients defined for dark theme means theme.gradients will be undefined in dark mode
 };
