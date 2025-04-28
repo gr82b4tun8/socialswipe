@@ -81,9 +81,9 @@ const baseBorderRadius = { // Defines '.large'
 export const lightTheme: AppTheme = {
   isDark: false,
   colors: {
-    primary: '#A7C7E7',
+    primary: '#fe5e58',
     secondary: '#549be3',
-    background: '#F9FAFB',
+    background: '#5a4fcf',
     card: '#FFFFFF',
     text: '#1F2937',
     textSecondary: '#6B7280',
@@ -100,9 +100,9 @@ export const lightTheme: AppTheme = {
   spacing: baseSpacing, // Assigns the fully defined baseSpacing object
   borderRadius: baseBorderRadius, // Assigns the fully defined baseBorderRadius object
   gradients: {
-      primaryHeader: { colors: ['red', 'yellow'], start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
+      primaryHeader: { colors: ['#fe5e58', '#5a4fcf'], start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
       screenBackground: { colors: ['#E0F2FE', '#FFFFFF'], start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } },
-      tabBarBackground: { colors: ['red', 'yellow'], start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
+      tabBarBackground: { colors: ['#fe5e58', '#5a4fcf'], start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
   },
 };
 

@@ -1,7 +1,9 @@
-// src/screens/DiscoverScreen.tsx (Fetching Likers)
+// src/screens/DiscoverScreen.tsx
 
-import React, { useState, useEffect } from 'react'; // Import useState, useEffect
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Button, SafeAreaView } from 'react-native';
+// --- ADD: Import LinearGradient ---
+import { LinearGradient } from 'expo-linear-gradient';
 
 // Import Contexts
 import { useDiscovery, BusinessListing } from '../contexts/DiscoveryContext'; // Adjust path if needed
@@ -30,7 +32,7 @@ const DiscoverScreen: React.FC = () => {
         reloadListings,
     } = useDiscovery();
     const { theme } = useTheme();
-    const styles = getThemedStyles(theme);
+    const styles = getThemedStyles(theme); // Generate styles using the theme
 
     // --- New State for Liker Profiles ---
     const [likerProfiles, setLikerProfiles] = useState<IndividualProfile[]>([]);
@@ -114,7 +116,7 @@ const DiscoverScreen: React.FC = () => {
         // Dependency array: Re-run effect if currentListing or the user session changes
     }, [currentListing, user]); // Ensure user is included if used in queries/checks
 
-    // Loading State - Preserved (Handles initial listing load)
+    // Loading State - Keep simple background for loading state
     if (isLoadingListings && !currentListing) {
         return (
             <SafeAreaView style={[styles.centered, { backgroundColor: theme.colors.background }]}>
@@ -123,75 +125,88 @@ const DiscoverScreen: React.FC = () => {
         );
     }
 
-    // Handlers - Preserved (Minor update to pass listing ID consistently)
-    const handleLike = () => { // Removed managerUserId param as it wasn't used
+    // Handlers - Preserved
+    const handleLike = () => {
         if (!currentListing) return;
         console.log(`DiscoverScreen: Like action triggered for Listing ID: ${currentListing.id}`);
-        likeListing(currentListing.id); // Assumes likeListing only needs listingId
+        likeListing(currentListing.id);
     };
 
-    const handleDismiss = () => { // Removed managerUserId param
+    const handleDismiss = () => {
         if (!currentListing) return;
         console.log(`DiscoverScreen: Dismiss action triggered for Listing ID: ${currentListing.id}`);
-        dismissListing(currentListing.id); // Assumes dismissListing only needs listingId
+        dismissListing(currentListing.id);
     };
 
 
-    // JSX Structure - Updated BusinessCardStack props
+    // --- UPDATED JSX Structure ---
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.contentArea}>
-                {currentListing ? (
-                    <View style={styles.cardContainer}>
-                         {/* Optional: Show subtle loading for likers if needed */}
-                         {/* {isLoadingLikers && <ActivityIndicator style={styles.likerLoadingIndicator} size="small" />} */}
-                        <BusinessCardStack
-                            topListing={currentListing}
-                            // --- REMOVED behindCount prop ---
-                            // behindCount={placeholderBehindCount}
-                            // --- ADDED likerProfiles prop ---
-                            likerProfiles={likerProfiles}
-                            onLikeBusiness={handleLike} // Pass updated handlers
-                            onDismissBusiness={handleDismiss} // Pass updated handlers
-                        />
-                    </View>
-                ) : (
-                    // "No Content" View Rendering - Preserved
-                    !isLoadingListings && (
-                        <View style={styles.noContentContainer}>
-                            <View style={styles.noContentCard}>
-                                <Text style={styles.noContentTitle}>That's everyone!</Text>
-                                <Text style={styles.noContentText}>
-                                    You've seen all available profiles for now.
-                                </Text>
-                            </View>
-                            <View style={styles.reloadButtonContainer}>
-                                <Button
-                                    title="Reload Profiles"
-                                    onPress={reloadListings}
-                                    color={theme.colors.primary}
-                                />
-                            </View>
+        <SafeAreaView style={styles.safeArea}>
+            {/* --- ADD: LinearGradient wrapper --- */}
+            <LinearGradient
+                // Define the gradient colors using theme values
+                colors={[theme.colors.primary, theme.colors.background]}
+                // Define the direction: left (0) to right (1) horizontally (y=0.5)
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                // Apply styles to make the gradient fill the container
+                style={styles.gradientContainer}
+            >
+                {/* --- Original content area moved inside the gradient --- */}
+                <View style={styles.contentArea}>
+                    {currentListing ? (
+                        <View style={styles.cardContainer}>
+                            {/* Optional: Show subtle loading for likers if needed */}
+                            {/* {isLoadingLikers && <ActivityIndicator style={styles.likerLoadingIndicator} size="small" />} */}
+                            <BusinessCardStack
+                                topListing={currentListing}
+                                likerProfiles={likerProfiles}
+                                onLikeBusiness={handleLike}
+                                onDismissBusiness={handleDismiss}
+                            />
                         </View>
-                    )
-                )}
-            </View>
+                    ) : (
+                        // "No Content" View Rendering - Preserved
+                        !isLoadingListings && (
+                            <View style={styles.noContentContainer}>
+                                <View style={styles.noContentCard}>
+                                    <Text style={styles.noContentTitle}>That's everyone!</Text>
+                                    <Text style={styles.noContentText}>
+                                        You've seen all available profiles for now.
+                                    </Text>
+                                </View>
+                                <View style={styles.reloadButtonContainer}>
+                                    <Button
+                                        title="Reload Profiles"
+                                        onPress={reloadListings}
+                                        color={theme.colors.primary}
+                                    />
+                                </View>
+                            </View>
+                        )
+                    )}
+                </View>
+            </LinearGradient>
         </SafeAreaView>
     );
 };
 
-// Helper function to generate styles based on the theme - Preserved
+// --- UPDATED Helper function to generate styles ---
 const getThemedStyles = (theme: AppTheme) => StyleSheet.create({
-    container: {
+    safeArea: { // Style for the outermost SafeAreaView
         flex: 1,
-        backgroundColor: theme.colors.background,
-        paddingBottom: 0,
     },
-    contentArea: {
+    gradientContainer: { // Style for the LinearGradient component
+        flex: 1, // Make it fill the SafeAreaView
+        // If you had padding/margin on the old container, move it here if needed
+        // e.g., paddingBottom: 0,
+    },
+    contentArea: { // This remains the container *inside* the gradient
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         width: '100%',
+        backgroundColor: 'transparent', // Ensure content area is transparent
     },
     cardContainer: {
         width: '98%',
@@ -213,12 +228,13 @@ const getThemedStyles = (theme: AppTheme) => StyleSheet.create({
         maxWidth: 350,
         alignItems: 'center',
         justifyContent: 'center',
+        // Adjust padding if needed based on new structure
         paddingBottom: theme.spacing.lg,
     },
     noContentCard: {
         width: '100%',
         padding: theme.spacing.lg,
-        backgroundColor: theme.colors.card,
+        backgroundColor: theme.colors.card, // Keep card background
         borderRadius: theme.borderRadius.large,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
@@ -246,7 +262,7 @@ const getThemedStyles = (theme: AppTheme) => StyleSheet.create({
         width: '100%',
         maxWidth: 250,
     },
-    centered: {
+    centered: { // Keep this for the loading state
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',

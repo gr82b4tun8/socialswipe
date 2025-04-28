@@ -16,12 +16,27 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 
 // --- Define Business Listing Type (Keep as is) ---
 export interface BusinessListing {
-  // ... (interface definition)
+    id: string;
+    manager_user_id: string;
+    business_name?: string;
+    description?: string;
+    category?: string;
+    address_street?: string;
+    address_city?: string;
+    address_state?: string;
+    address_postal_code?: string;
+    address_country?: string;
+    phone_number?: string;
+    website?: string;
+    listing_photos?: string[];
+    // Add any other relevant fields
 }
 
 // --- Business Profile Card Props (Keep as is) ---
 interface BusinessProfileCardProps {
-  // ... (props definition)
+    listing: BusinessListing | null;
+    onLikeBusiness: (managerUserId: string) => void;
+    onDismissBusiness: (managerUserId: string) => void;
 }
 
 // Enable LayoutAnimation for Android (Keep as is)
@@ -60,12 +75,11 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
         listing.address_country
     ].filter(Boolean).join(', ');
 
-    const hasDetailsToShow = listing.description || listing.phone_number || fullAddress || listing.category;
+    const hasDetailsToShow = listing.description || listing.phone_number || fullAddress || listing.category; // Note: Category is now shown in overlay, but can still trigger details view if needed
 
     return (
         // This container now IS the card visually. It fills the parent wrapper from BusinessCardStack.
         <View style={styles.container}>
-            {/* Removed the extra 'card' View. ImageBackground is now a direct child */}
             <ImageBackground
                 source={{ uri: primaryImageUrl || fallbackImageUrl }}
                 style={styles.imageBackground} // Needs to specify how much space it takes
@@ -119,12 +133,29 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                         )}
                     </View>
                 </View>
-            </ImageBackground>
+
+                {/* Action Buttons - NOW ABSOLUTELY POSITIONED WITHIN ImageBackground */}
+                <View style={styles.actionButtonsContainer}>
+                    <TouchableOpacity
+                        style={[styles.actionButton, styles.skipButton]}
+                        onPress={() => onDismissBusiness(listing.manager_user_id)}
+                    >
+                        <Ionicons name="close" size={32} color="#F15A6A" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.actionButton, styles.likeButton]}
+                        onPress={() => onLikeBusiness(listing.manager_user_id)}
+                    >
+                        <Ionicons name="heart" size={30} color="#FFFFFF" />
+                    </TouchableOpacity>
+                </View>
+
+            </ImageBackground> {/* End ImageBackground */}
 
             {/* Collapsible Details Section - Appears BELOW the ImageBackground */}
             {showDetails && (
-                <ScrollView style={styles.detailsContainer} // No changes needed here yet
-                    nestedScrollEnabled={true} // Good practice for ScrollViews inside ScrollViews/potentially animated views
+                <ScrollView style={styles.detailsContainer}
+                    nestedScrollEnabled={true}
                 >
                     {/* Description */}
                     {listing.description ? (
@@ -156,21 +187,8 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                 </ScrollView>
             )}
 
-            {/* Action Buttons - Remain at the bottom due to container's flex direction */}
-            <View style={styles.actionButtonsContainer}>
-                <TouchableOpacity
-                    style={[styles.actionButton, styles.skipButton]}
-                    onPress={() => onDismissBusiness(listing.manager_user_id)}
-                >
-                    <Ionicons name="close" size={32} color="#F15A6A" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.actionButton, styles.likeButton]}
-                    onPress={() => onLikeBusiness(listing.manager_user_id)}
-                >
-                    <Ionicons name="heart" size={30} color="#FFFFFF" />
-                </TouchableOpacity>
-            </View>
+            {/* The actionButtonsContainer View was moved from here */}
+
         </View> // End container
     );
 };
@@ -183,28 +201,21 @@ const styles = StyleSheet.create({
         flex: 1, // Crucial: Makes this View fill its parent (the sized wrapper in CardStack)
         borderRadius: 16, // Apply border radius here
         overflow: 'hidden', // Clip children (ImageBackground, ScrollView) to the rounded corners
-        backgroundColor: '#fff', // Card background color
+        backgroundColor: '#E0E0E0', // Fallback color if image doesn't load or has transparency
         flexDirection: 'column', // Explicitly column
-        justifyContent: 'space-between', // Push buttons to bottom if details aren't shown/take less space
+        // justifyContent: 'space-between', // Less critical now, positioning handled by flex image and details block
     },
-    // REMOVED the 'card' style as 'container' now serves this purpose.
-    // card: { ... }
-
     imageBackground: {
-        // Image takes available space, pushing details/buttons down or overlaying content on top
-        // We need to control its height or flex grow behaviour
-        // Option 1: Fixed portion of height?
-        // height: screenHeight * 0.5, // Example: 50% of screen? Adjust as needed
-        // Option 2: Let it flex (might be harder to manage with collapsible details)
-        flex: 1, // Let image try to take up max space initially
+        flex: 1, // Let image try to take up max space initially (adjusts if details are shown)
         width: '100%',
         justifyContent: 'flex-end', // Align gradient overlay to the bottom
         backgroundColor: '#E0E0E0', // Fallback color
+        position: 'relative', // Needed for absolute positioning of children (action buttons)
     },
     gradientOverlay: {
         backgroundColor: 'rgba(0, 0, 0, 0.4)',
         paddingTop: 40, // Adjust as needed for status bar etc.
-        paddingBottom: 16,
+        paddingBottom: 80, // Increased padding to avoid overlap with action buttons
     },
     contentOverlay: {
         paddingHorizontal: 16,
@@ -272,15 +283,12 @@ const styles = StyleSheet.create({
         // This appears BELOW the ImageBackground when showDetails is true
         paddingHorizontal: 16,
         paddingVertical: 16,
-        // Max height relative to the CARD, not screen, might be better
-        // Let's limit its flex grow instead? Or keep max height for now.
         maxHeight: screenHeight * 0.25, // Constrain the scrollable area size
-        // backgroundColor: '#ffffff', // Inherits from container now
         borderTopWidth: 1, // Separator line
         borderTopColor: '#eee',
-        // Crucial for managing space with flex:1 imageBackground
         flexGrow: 0, // Don't allow this to grow indefinitely
         flexShrink: 1, // Allow it to shrink if needed
+        backgroundColor: '#ffffff', // White background for the details section
     },
     detailsBlock: {
         marginBottom: 15,
@@ -314,16 +322,18 @@ const styles = StyleSheet.create({
         lineHeight: 20,
     },
     actionButtonsContainer: {
-        // Sits at the bottom because of container's justifyContent + its own flex position
+        // Positioned absolutely over the ImageBackground
+        position: 'absolute',
+        bottom: 20, // Distance from the bottom of the image
+        left: 0,
+        right: 0,
+        zIndex: 1, // Ensure they are above the gradient/text overlay
+
+        // Flex properties for aligning buttons within this container
         flexDirection: 'row',
         justifyContent: 'space-evenly',
         alignItems: 'center',
-        paddingVertical: 15,
-        paddingHorizontal: 20,
-        // backgroundColor: 'transparent', // No background needed here
-        // Ensure it doesn't grow or shrink unexpectedly
-        flexGrow: 0,
-        flexShrink: 0,
+        // Removed paddingVertical, paddingHorizontal, backgroundColor, flexGrow, flexShrink
     },
     actionButton: {
         width: 64,
@@ -340,7 +350,7 @@ const styles = StyleSheet.create({
         elevation: 6,
     },
     skipButton: {
-        // Specific styles if needed
+        // Specific styles if needed (e.g., different background)
     },
     likeButton: {
         backgroundColor: '#4CAF50', // Green background for like

@@ -12,7 +12,7 @@ import LikedListingItem from '../components/LikedListingItem'; // Use the update
 import { useAuth } from '../contexts/AuthContext'; // Need user ID for fetching/swiping
 import { supabase } from '../lib/supabaseClient'; // Adjust path
 import { Profile as IndividualProfile } from '../screens/EditProfileScreen'; // Adjust path/name
-import ProfileCardStack from '../components/ProfileCardStack'; // Import the new stack component
+import ProfileCardStack from '../components/ProfileStoryView'; // Import the new stack component
 import { Ionicons } from '@expo/vector-icons'; // For close button
 
 const EventsScreen: React.FC = () => {
