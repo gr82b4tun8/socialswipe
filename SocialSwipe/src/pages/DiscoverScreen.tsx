@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Button, SafeAreaView } from 'react-native';
-// --- ADD: Import LinearGradient ---
 import { LinearGradient } from 'expo-linear-gradient';
 
 // Import Contexts
@@ -11,15 +10,18 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext'; // Adjust path if needed
 import { AppTheme } from '../theme/theme'; // Import AppTheme type
 
-// Import Components
-import BusinessCardStack from '../components/BusinessCardStack'; // Ensure path is correct
-// Import the IndividualProfile type (adjust path/name as needed)
-import { Profile as IndividualProfile } from './EditProfileScreen'; // Example using type from EditProfileScreen
-// Import Supabase client
-import { supabase } from '../lib/supabaseClient'; // Adjust path
+// --- REMOVE: Import BusinessCardStack ---
+// import BusinessCardStack from '../components/BusinessCardStack';
 
-// Define the maximum number of liker profiles to show behind
-const MAX_BEHIND_CARDS = 5; // Consistent with BusinessCardStack
+// --- ADD: Import BusinessProfileCard and its type ---
+import BusinessProfileCard, { BusinessListing as BusinessProfileListing } from '../components/BusinessProfileCard'; // Ensure path is correct
+
+// --- REMOVE: Import IndividualProfile type and Supabase (if only used for likers) ---
+// import { Profile as IndividualProfile } from './EditProfileScreen'; // Example using type from EditProfileScreen
+// import { supabase } from '../lib/supabaseClient'; // Adjust path
+
+// --- REMOVE: MAX_BEHIND_CARDS constant ---
+// const MAX_BEHIND_CARDS = 5;
 
 const DiscoverScreen: React.FC = () => {
     // Existing Hooks - Preserved
@@ -34,87 +36,14 @@ const DiscoverScreen: React.FC = () => {
     const { theme } = useTheme();
     const styles = getThemedStyles(theme); // Generate styles using the theme
 
-    // --- New State for Liker Profiles ---
-    const [likerProfiles, setLikerProfiles] = useState<IndividualProfile[]>([]);
-    const [isLoadingLikers, setIsLoadingLikers] = useState<boolean>(false);
+    // --- REMOVE: State for Liker Profiles and loading ---
+    // const [likerProfiles, setLikerProfiles] = useState<IndividualProfile[]>([]);
+    // const [isLoadingLikers, setIsLoadingLikers] = useState<boolean>(false);
 
-    // --- Effect to Fetch Likers when currentListing changes ---
-    useEffect(() => {
-        // Function to fetch likers and their profiles
-        const fetchLikers = async () => {
-            if (!currentListing || !user) {
-                // If no listing or user, clear profiles and stop
-                setLikerProfiles([]);
-                return;
-            }
-
-            setIsLoadingLikers(true);
-            setLikerProfiles([]); // Clear previous likers immediately
-
-            try {
-                console.log(`[DiscoverScreen] Fetching likes for Listing ID: ${currentListing.id}`);
-
-                // 1. Fetch liker_user_ids from profile_like table
-                const { data: likeData, error: likeError } = await supabase
-                    .from('profile_likes')
-                    .select('liker_user_id')
-                    .eq('liked_listing_id', currentListing.id)
-                    // Optional: Exclude the current user viewing the stack
-                    // .neq('liker_user_id', user.id)
-                    .limit(MAX_BEHIND_CARDS); // Limit the number of likes fetched
-
-                if (likeError) {
-                    console.error('[DiscoverScreen] Error fetching likes:', likeError.message);
-                    throw likeError; // Throw error to be caught by outer catch
-                }
-
-                if (likeData && likeData.length > 0) {
-                    const likerIds = likeData.map(like => like.liker_user_id);
-                    console.log(`[DiscoverScreen] Found Liker IDs:`, likerIds);
-
-                    // 2. Fetch profiles for these liker_user_ids
-                    const { data: profileData, error: profileError } = await supabase
-                        .from('individual_profiles') // Fetch from individual profiles table
-                        .select('*') // Select necessary fields for ProfileCard
-                        .in('user_id', likerIds);
-
-                    if (profileError) {
-                        console.error('[DiscoverScreen] Error fetching liker profiles:', profileError.message);
-                        // Check for specific errors like RLS issues
-                        if (profileError.message.includes('permission denied') || profileError.message.includes('row-level security')) {
-                           console.warn('[DiscoverScreen] Possible RLS issue fetching profiles. Ensure policy allows reading other user profiles.');
-                        }
-                        throw profileError; // Throw error
-                    }
-
-                    if (profileData) {
-                        console.log(`[DiscoverScreen] Successfully fetched ${profileData.length} liker profiles.`);
-                        // Ensure data matches the expected IndividualProfile type
-                        setLikerProfiles(profileData as IndividualProfile[]);
-                    } else {
-                         console.log('[DiscoverScreen] No profile data returned for liker IDs.');
-                         setLikerProfiles([]); // Set empty if profile fetch returned null/undefined
-                    }
-
-                } else {
-                    console.log('[DiscoverScreen] No likes found for this listing.');
-                    setLikerProfiles([]); // No likes found, ensure state is empty
-                }
-
-            } catch (error) {
-                // Catch errors from either query
-                console.error('[DiscoverScreen] Failed to complete liker fetch process:', error);
-                setLikerProfiles([]); // Ensure profiles are cleared on any error
-            } finally {
-                setIsLoadingLikers(false); // Stop loading indicator
-                console.log('[DiscoverScreen] Finished liker fetch attempt.');
-            }
-        };
-
-        fetchLikers(); // Execute the fetch function
-
-        // Dependency array: Re-run effect if currentListing or the user session changes
-    }, [currentListing, user]); // Ensure user is included if used in queries/checks
+    // --- REMOVE: Effect to Fetch Likers ---
+    // useEffect(() => {
+    //     // ... entire fetchLikers function and effect content removed ...
+    // }, [currentListing, user]);
 
     // Loading State - Keep simple background for loading state
     if (isLoadingListings && !currentListing) {
@@ -125,7 +54,7 @@ const DiscoverScreen: React.FC = () => {
         );
     }
 
-    // Handlers - Preserved
+    // Handlers - Preserved (These will be passed to BusinessProfileCard)
     const handleLike = () => {
         if (!currentListing) return;
         console.log(`DiscoverScreen: Like action triggered for Listing ID: ${currentListing.id}`);
@@ -142,26 +71,22 @@ const DiscoverScreen: React.FC = () => {
     // --- UPDATED JSX Structure ---
     return (
         <SafeAreaView style={styles.safeArea}>
-            {/* --- ADD: LinearGradient wrapper --- */}
             <LinearGradient
-                // Define the gradient colors using theme values
                 colors={[theme.colors.primary, theme.colors.background]}
-                // Define the direction: left (0) to right (1) horizontally (y=0.5)
                 start={{ x: 0, y: 0.5 }}
                 end={{ x: 1, y: 0.5 }}
-                // Apply styles to make the gradient fill the container
                 style={styles.gradientContainer}
             >
-                {/* --- Original content area moved inside the gradient --- */}
                 <View style={styles.contentArea}>
                     {currentListing ? (
                         <View style={styles.cardContainer}>
-                            {/* Optional: Show subtle loading for likers if needed */}
+                            {/* --- REMOVE: Liker loading indicator --- */}
                             {/* {isLoadingLikers && <ActivityIndicator style={styles.likerLoadingIndicator} size="small" />} */}
-                            <BusinessCardStack
-                                topListing={currentListing}
-                                likerProfiles={likerProfiles}
-                                onLikeBusiness={handleLike}
+
+                            {/* --- REPLACE: BusinessCardStack with BusinessProfileCard --- */}
+                            <BusinessProfileCard
+                                listing={currentListing as BusinessProfileListing} // Pass current listing directly
+                                onLikeBusiness={handleLike}       // Pass the handlers
                                 onDismissBusiness={handleDismiss}
                             />
                         </View>
@@ -193,48 +118,41 @@ const DiscoverScreen: React.FC = () => {
 
 // --- UPDATED Helper function to generate styles ---
 const getThemedStyles = (theme: AppTheme) => StyleSheet.create({
-    safeArea: { // Style for the outermost SafeAreaView
+    safeArea: {
         flex: 1,
     },
-    gradientContainer: { // Style for the LinearGradient component
-        flex: 1, // Make it fill the SafeAreaView
-        // If you had padding/margin on the old container, move it here if needed
-        // e.g., paddingBottom: 0,
+    gradientContainer: {
+        flex: 1,
     },
-    contentArea: { // This remains the container *inside* the gradient
+    contentArea: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         width: '100%',
-        backgroundColor: 'transparent', // Ensure content area is transparent
+        backgroundColor: 'transparent',
     },
     cardContainer: {
         width: '98%',
         height: '98%',
         maxWidth: 450,
         maxHeight: 775,
-        position: 'relative', // Needed if using absolute positioning for indicator
+        position: 'relative',
     },
-    // Optional style for liker loading indicator
-    likerLoadingIndicator: {
-        position: 'absolute',
-        top: 10,
-        alignSelf: 'center',
-        zIndex: 100, // Ensure it's above cards if needed
-    },
+    // --- REMOVE: likerLoadingIndicator style ---
+    // likerLoadingIndicator: { ... },
+
     // --- Other styles remain unchanged ---
     noContentContainer: {
         width: '90%',
         maxWidth: 350,
         alignItems: 'center',
         justifyContent: 'center',
-        // Adjust padding if needed based on new structure
         paddingBottom: theme.spacing.lg,
     },
     noContentCard: {
         width: '100%',
         padding: theme.spacing.lg,
-        backgroundColor: theme.colors.card, // Keep card background
+        backgroundColor: theme.colors.card,
         borderRadius: theme.borderRadius.large,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
@@ -262,7 +180,7 @@ const getThemedStyles = (theme: AppTheme) => StyleSheet.create({
         width: '100%',
         maxWidth: 250,
     },
-    centered: { // Keep this for the loading state
+    centered: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',

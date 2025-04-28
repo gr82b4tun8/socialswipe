@@ -87,7 +87,7 @@ function ChatRoomScreen({ route }: any) {
 }
 
 
-// --- Custom App Header Component --- (Gradient already applied)
+// --- Custom App Header Component --- (MODIFIED)
 function AppHeader({ navigation, route, options }: NativeStackHeaderProps | BottomTabHeaderProps) {
     const { theme } = useTheme();
     const insets = useSafeAreaInsets();
@@ -121,19 +121,21 @@ function AppHeader({ navigation, route, options }: NativeStackHeaderProps | Bott
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                         <Ionicons
                             name="chevron-back"
-                            size={theme.fonts?.sizes?.xxLarge || 28}
+                            size={theme.fonts?.sizes?.xxLarge || 45} // Ensure this matches spacer if needed
                             color={theme.colors.headerText}
                         />
                     </TouchableOpacity>
                 )}
-                 {!canGoBack && <View style={styles.backButtonPlaceholder} />}
+                {/* Removed the back button placeholder */}
                 <Text
                     style={[
                         styles.headerTitle,
                         {
                             color: theme.colors.headerText,
-                            fontSize: theme.fonts?.sizes?.xxLarge || 24,
+                            fontSize: theme.fonts?.sizes?.xxLarge || 26,
                             fontWeight: 'bold',
+                            // REMOVED conditional marginLeft: !canGoBack ? styles.rightSpacer.width : 0
+                            // Title will now naturally align left when back button is not present
                         }
                     ]}
                     numberOfLines={1}
@@ -181,7 +183,7 @@ function OnboardingStack({ initialRouteName }: { initialRouteName?: keyof Onboar
     );
 }
 
-// --- MainTabs --- MODIFIED (Apply conditional gradient TabBar background)
+// --- MainTabs --- (Keep as is from previous step)
 function MainTabs() {
     const { theme } = useTheme(); // Get theme here
 
@@ -255,7 +257,7 @@ function MainTabs() {
 }
 // --- End MainTabs Modification ---
 
-// --- RootStack --- (Kept as is - applies custom header globally)
+// --- RootStack --- (Keep as is - applies custom header globally)
 function RootStack() {
     // ... (no changes)
      const { theme } = useTheme();
@@ -285,7 +287,7 @@ function RootStack() {
 // --- End RootStack ---
 
 
-// --- AppContent (Kept as is) ---
+// --- AppContent (Keep as is) ---
 function AppContent() {
     // ... (no changes)
     const { session, loadingAuth } = useAuth();
@@ -317,7 +319,7 @@ export default function App() {
     );
 }
 
-// --- Helper component to access theme for Root View and Navigation --- (Keep as is - background handled separately if needed)
+// --- Helper component to access theme for Root View and Navigation --- (Keep as is)
 function AppWithTheme() {
     // ... (no changes needed here for tab bar gradient)
      const { theme } = useTheme();
@@ -347,15 +349,15 @@ function AppWithTheme() {
 // --- End AppWithTheme ---
 
 
-// --- Styles --- (Keep as is)
+// --- Styles --- (Keep as is, except removed backButtonPlaceholder)
 const styles = StyleSheet.create({
     screen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
     headerContainer: { /* ... */ justifyContent: 'center', },
     headerContent: { /* ... */ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, flex: 1, backgroundColor: 'transparent', },
-    backButton: { /* ... */ padding: 5, marginRight: 10, },
-    backButtonPlaceholder: { /* ... */ width: (28 + 5*2 + 10), },
-    headerTitle: { /* ... */ flex: 1, textAlign: 'left', },
-    rightSpacer: { /* ... */ width: (28 + 5*2 + 10), }
+    backButton: { /* ... */ padding: 5, marginRight: 0, }, // Keep marginRight 0 or adjust as needed
+    // backButtonPlaceholder style definition is removed
+    headerTitle: { /* ... */ flex: 1, textAlign: 'left', }, // Ensures title aligns left within its flex container
+    rightSpacer: { /* ... */ width: (45 + 5*2), } // Keep for potential right-side balance
 });
 
 // Export RootStackParamList for use in other components

@@ -32,11 +32,11 @@ export interface BusinessListing {
     // Add any other relevant fields
 }
 
-// --- Business Profile Card Props (Keep as is) ---
+// --- Business Profile Card Props (UPDATE handler types) ---
 interface BusinessProfileCardProps {
     listing: BusinessListing | null;
-    onLikeBusiness: (managerUserId: string) => void;
-    onDismissBusiness: (managerUserId: string) => void;
+    onLikeBusiness: () => void; // Changed: No longer expects managerUserId
+    onDismissBusiness: () => void; // Changed: No longer expects managerUserId
 }
 
 // Enable LayoutAnimation for Android (Keep as is)
@@ -75,14 +75,13 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
         listing.address_country
     ].filter(Boolean).join(', ');
 
-    const hasDetailsToShow = listing.description || listing.phone_number || fullAddress || listing.category; // Note: Category is now shown in overlay, but can still trigger details view if needed
+    const hasDetailsToShow = listing.description || listing.phone_number || fullAddress || listing.category;
 
     return (
-        // This container now IS the card visually. It fills the parent wrapper from BusinessCardStack.
         <View style={styles.container}>
             <ImageBackground
                 source={{ uri: primaryImageUrl || fallbackImageUrl }}
-                style={styles.imageBackground} // Needs to specify how much space it takes
+                style={styles.imageBackground}
                 resizeMode="cover"
                 onError={(error) => {
                     console.warn(`Image load error for listing ${listing.id} (URL: ${primaryImageUrl || fallbackImageUrl}): ${error.nativeEvent.error}`);
@@ -138,13 +137,13 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                 <View style={styles.actionButtonsContainer}>
                     <TouchableOpacity
                         style={[styles.actionButton, styles.skipButton]}
-                        onPress={() => onDismissBusiness(listing.manager_user_id)}
+                        onPress={onDismissBusiness} // Changed: Call directly without arguments
                     >
                         <Ionicons name="close" size={32} color="#F15A6A" />
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.actionButton, styles.likeButton]}
-                        onPress={() => onLikeBusiness(listing.manager_user_id)}
+                        onPress={onLikeBusiness} // Changed: Call directly without arguments
                     >
                         <Ionicons name="heart" size={30} color="#FFFFFF" />
                     </TouchableOpacity>
@@ -187,35 +186,32 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                 </ScrollView>
             )}
 
-            {/* The actionButtonsContainer View was moved from here */}
-
         </View> // End container
     );
 };
 
-// --- Styles ---
+// --- Styles --- (Keep as is)
 const { height: screenHeight } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1, // Crucial: Makes this View fill its parent (the sized wrapper in CardStack)
-        borderRadius: 16, // Apply border radius here
-        overflow: 'hidden', // Clip children (ImageBackground, ScrollView) to the rounded corners
-        backgroundColor: '#E0E0E0', // Fallback color if image doesn't load or has transparency
-        flexDirection: 'column', // Explicitly column
-        // justifyContent: 'space-between', // Less critical now, positioning handled by flex image and details block
+        flex: 1,
+        borderRadius: 16,
+        overflow: 'hidden',
+        backgroundColor: '#E0E0E0',
+        flexDirection: 'column',
     },
     imageBackground: {
-        flex: 1, // Let image try to take up max space initially (adjusts if details are shown)
+        flex: 1,
         width: '100%',
-        justifyContent: 'flex-end', // Align gradient overlay to the bottom
-        backgroundColor: '#E0E0E0', // Fallback color
-        position: 'relative', // Needed for absolute positioning of children (action buttons)
+        justifyContent: 'flex-end',
+        backgroundColor: '#E0E0E0',
+        position: 'relative',
     },
     gradientOverlay: {
         backgroundColor: 'rgba(0, 0, 0, 0.4)',
-        paddingTop: 40, // Adjust as needed for status bar etc.
-        paddingBottom: 80, // Increased padding to avoid overlap with action buttons
+        paddingTop: 40,
+        paddingBottom: 80,
     },
     contentOverlay: {
         paddingHorizontal: 16,
@@ -272,7 +268,7 @@ const styles = StyleSheet.create({
     detailsButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 5, // Make it easier to tap
+        paddingVertical: 5,
     },
     detailsButtonText: {
         color: '#FFFFFF',
@@ -280,15 +276,14 @@ const styles = StyleSheet.create({
         marginRight: 5,
     },
     detailsContainer: {
-        // This appears BELOW the ImageBackground when showDetails is true
         paddingHorizontal: 16,
         paddingVertical: 16,
-        maxHeight: screenHeight * 0.25, // Constrain the scrollable area size
-        borderTopWidth: 1, // Separator line
+        maxHeight: screenHeight * 0.25,
+        borderTopWidth: 1,
         borderTopColor: '#eee',
-        flexGrow: 0, // Don't allow this to grow indefinitely
-        flexShrink: 1, // Allow it to shrink if needed
-        backgroundColor: '#ffffff', // White background for the details section
+        flexGrow: 0,
+        flexShrink: 1,
+        backgroundColor: '#ffffff',
     },
     detailsBlock: {
         marginBottom: 15,
@@ -313,7 +308,7 @@ const styles = StyleSheet.create({
         marginRight: 10,
         marginTop: 2,
         color: '#555',
-        width: 16, // Keep consistent alignment
+        width: 16,
     },
     detailsInfoText: {
         fontSize: 14,
@@ -322,18 +317,14 @@ const styles = StyleSheet.create({
         lineHeight: 20,
     },
     actionButtonsContainer: {
-        // Positioned absolutely over the ImageBackground
         position: 'absolute',
-        bottom: 20, // Distance from the bottom of the image
+        bottom: 20,
         left: 0,
         right: 0,
-        zIndex: 1, // Ensure they are above the gradient/text overlay
-
-        // Flex properties for aligning buttons within this container
+        zIndex: 1,
         flexDirection: 'row',
         justifyContent: 'space-evenly',
         alignItems: 'center',
-        // Removed paddingVertical, paddingHorizontal, backgroundColor, flexGrow, flexShrink
     },
     actionButton: {
         width: 64,
@@ -341,8 +332,7 @@ const styles = StyleSheet.create({
         borderRadius: 32,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF', // White background for the button itself
-        // Keep shadows for the buttons
+        backgroundColor: '#FFFFFF',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
@@ -350,10 +340,10 @@ const styles = StyleSheet.create({
         elevation: 6,
     },
     skipButton: {
-        // Specific styles if needed (e.g., different background)
+        // Specific styles if needed
     },
     likeButton: {
-        backgroundColor: '#4CAF50', // Green background for like
+        backgroundColor: '#4CAF50',
     },
 });
 
