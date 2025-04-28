@@ -32,9 +32,9 @@ export interface Profile { // Make sure to export if needed elsewhere
 
 interface ProfileCardProps {
   profile: Profile;
-  isVisible: boolean; // Added to potentially optimize rendering/state updates
-  // --- ADDED: Callback for liking ---
-  onLike: (profileId: string) => void;
+  isVisible?: boolean; // Changed to optional as it might not always be passed from ProfileScreen
+  // --- ADDED: Callback for liking (assuming it's optional or handled differently in ProfileScreen context) ---
+  onLike?: (profileId: string) => void;
 }
 
 // --- calculateAge Function --- (Unchanged)
@@ -52,14 +52,16 @@ const calculateAge = (dobString: string): number | null => {
   }
 };
 
-// --- Dimensions --- (Unchanged)
+// --- Dimensions ---
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
-// Make card take almost full width for story view
-const cardWidth = screenWidth; // Use full width
-// Adjust height based on screen, leave space for nav/status bars and profile info
-const carouselHeight = screenHeight * 0.6; // Example: 60% of screen height
+// Make card take almost full width (this is fine, affects horizontal space)
+const cardWidth = screenWidth; // Use full width (or screenWidth - padding if needed)
 
-// --- CarouselImageItem Component --- (Unchanged, but consider error handling/placeholder)
+// ****** MODIFICATION: Reduced carousel height ******
+// Changed from 0.6 to 0.4 (or adjust as needed)
+const carouselHeight = screenHeight * 0.4; // Example: 40% of screen height
+
+// --- CarouselImageItem Component --- (Unchanged, includes error handling)
 interface CarouselImageItemProps { url: string; }
 const CarouselImageItem: React.FC<CarouselImageItemProps> = ({ url }) => {
   const [isLoading, setIsLoading] = useState(true);
@@ -102,14 +104,20 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, onLike, isVisible })
   const images = Array.isArray(profile.profile_pictures) ? profile.profile_pictures : [];
 
   // Reset active index if visibility changes (e.g., navigating between profiles)
-  // Avoids showing the wrong image index when swiping quickly
   React.useEffect(() => {
-      if (isVisible) {
+      // Only run if isVisible is explicitly provided (might not be from ProfileScreen)
+      if (isVisible !== undefined) {
+          if (isVisible) {
+              setActiveIndex(0);
+              // Scroll FlatList to start without animation if needed when visibility changes
+              // flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+          }
+          // Note: No 'else' block needed unless specific cleanup on becoming invisible is required
+      } else {
+          // Default behavior if isVisible is not provided: Set to 0 on mount/profile change
           setActiveIndex(0);
-          // Scroll FlatList to start without animation if needed
-          // flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
       }
-  }, [isVisible, profile.id]); // Depend on isVisible and profile ID
+  }, [isVisible, profile.id]); // Depend on isVisible (if provided) and profile ID
 
   const handleScroll = (event: any) => {
     const scrollPosition = event.nativeEvent.contentOffset.x;
@@ -134,14 +142,18 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, onLike, isVisible })
   }, [activeIndex, images.length]);
 
 
-  // --- ADDED: Double Tap Handler ---
+  // --- Double Tap Handler (Conditional based on onLike prop) ---
   const handleDoubleTap = useCallback(() => {
-    // console.log(`Double Tapped profile: ${profile.first_name}`);
-    onLike(profile.id);
-    // Add visual feedback for like (e.g., heart animation) here if desired
+    if (onLike) { // Only trigger if onLike is provided
+        // console.log(`Double Tapped profile: ${profile.first_name}`);
+        onLike(profile.id);
+        // Add visual feedback for like (e.g., heart animation) here if desired
+    } else {
+        // console.log("Double tap ignored, no onLike handler provided.");
+    }
   }, [profile.id, onLike]);
 
-  // --- ADDED: Single Tap Handler (to detect double taps) ---
+  // --- Single Tap Handler (to detect double taps) ---
   const handleTap = useCallback((event: GestureResponderEvent) => {
     const now = Date.now();
     if (lastTap.current && (now - lastTap.current) < DOUBLE_PRESS_DELAY) {
@@ -151,13 +163,9 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, onLike, isVisible })
     } else {
       // First tap (or tap after delay)
       lastTap.current = now;
-
-      // Optional: Handle single tap for other actions if needed,
-      // e.g., toggle UI elements. For now, it just registers for double tap.
-      // const tapX = event.nativeEvent.locationX;
-      // console.log("Single Tap registered at X:", tapX);
+      // Optional: Handle single tap (e.g., toggle UI) - currently does nothing extra
     }
-  }, [handleDoubleTap]); // Include handleDoubleTap in dependencies
+  }, [handleDoubleTap]);
 
 
   const renderImageItem = useCallback(({ item: url }: { item: string }) => {
@@ -168,58 +176,58 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, onLike, isVisible })
   if (!profile) return null; // Handle case where profile might be null/undefined
 
   return (
-    // Pressable container for double-tap detection
-    <Pressable onPress={handleTap} style={styles.card}>
+    // Use Pressable only if interaction (like double-tap) is expected
+    <Pressable onPress={onLike ? handleTap : undefined} style={styles.card} disabled={!onLike}>
         {/* Image Section */}
         <View style={styles.carouselContainer}>
             {images.length > 0 ? (
             <>
                 <FlatList
-                ref={flatListRef}
-                data={images}
-                renderItem={renderImageItem}
-                keyExtractor={(item, index) => `${profile.id}-img-${index}`} // More unique key
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onScroll={handleScroll}
-                scrollEventThrottle={16} // Keep for smooth index updates
-                style={styles.flatList}
-                contentContainerStyle={styles.flatListContent}
-                getItemLayout={(data, index) => ({
-                    length: cardWidth,
-                    offset: cardWidth * index,
-                    index,
-                })}
-                bounces={false}
-                // Optimization: Only render items near the viewport
-                initialNumToRender={1}
-                maxToRenderPerBatch={3}
-                windowSize={5}
-                removeClippedSubviews={true} // Can improve performance but use with caution
+                    ref={flatListRef}
+                    data={images}
+                    renderItem={renderImageItem}
+                    keyExtractor={(item, index) => `${profile.id}-img-${index}`} // More unique key
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    onScroll={handleScroll}
+                    scrollEventThrottle={16} // Keep for smooth index updates
+                    style={styles.flatList}
+                    contentContainerStyle={styles.flatListContent}
+                    getItemLayout={(data, index) => ({
+                        length: cardWidth,
+                        offset: cardWidth * index,
+                        index,
+                    })}
+                    bounces={false}
+                    // Optimization: Only render items near the viewport
+                    initialNumToRender={1}
+                    maxToRenderPerBatch={3}
+                    windowSize={5}
+                    removeClippedSubviews={true} // Can improve performance but use with caution
                 />
-                {/* Image Navigation (Keep Chevrons or rely on taps/dots) */}
+                {/* Image Navigation (Chevrons & Dots) */}
                 {images.length > 1 && (
                 <>
-                    {/* Keep these controls for explicit image navigation */}
+                    {/* Chevrons */}
                     <Pressable
                       style={[styles.carouselControl, styles.carouselPrev]}
-                      onPress={goToPrevImage} // Use specific image nav function
+                      onPress={goToPrevImage}
                       disabled={activeIndex === 0}
-                      hitSlop={10} // Easier to tap
+                      hitSlop={10}
                     >
                       <Ionicons name="chevron-back-circle" size={36} color={activeIndex === 0 ? "rgba(255, 255, 255, 0.4)" : "#fff"} style={styles.controlIconShadow} />
                     </Pressable>
                     <Pressable
                       style={[styles.carouselControl, styles.carouselNext]}
-                      onPress={goToNextImage} // Use specific image nav function
+                      onPress={goToNextImage}
                       disabled={activeIndex === images.length - 1}
-                      hitSlop={10} // Easier to tap
+                      hitSlop={10}
                     >
                       <Ionicons name="chevron-forward-circle" size={36} color={activeIndex === images.length - 1 ? "rgba(255, 255, 255, 0.4)" : "#fff"} style={styles.controlIconShadow}/>
                     </Pressable>
 
-                    {/* Pagination Dots for Images */}
+                    {/* Pagination Dots */}
                     <View style={styles.paginationContainer}>
                     {images.map((_, index) => (
                         <View
@@ -242,8 +250,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, onLike, isVisible })
             )}
         </View>
 
-        {/* Content Section - Consider placing outside Pressable if taps interfere */}
-        {/* For now, keeping it inside; taps on text usually don't trigger container */}
+        {/* Content Section */}
         <View style={styles.content}>
           <Text style={styles.nameAgeText}>
             {profile.first_name}
@@ -263,6 +270,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, onLike, isVisible })
           {profile.bio && (
             <View style={styles.detailSection}>
               <Text style={styles.detailLabel}>About Me</Text>
+              {/* Consider adding numberOfLines={3} ellipsizeMode="tail" for long bios */}
               <Text style={styles.bioText}>{profile.bio}</Text>
             </View>
           )}
@@ -270,11 +278,10 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, onLike, isVisible })
             <View style={styles.detailSection}>
               <Text style={styles.detailLabel}>Interests</Text>
               <View style={styles.badgeContainer}>
+                {/* Consider limiting the number of interests shown initially */}
                 {profile.interests.map((interest, index) => (
                   <View key={index} style={styles.badge}>
-                    {/* Use actual interest text if short, or keep initial */}
                     <Text style={styles.badgeText}>{interest}</Text>
-                    {/* <Text style={styles.badgeText}>{interest.charAt(0).toUpperCase()}</Text> */}
                   </View>
                 ))}
               </View>
@@ -287,25 +294,38 @@ const ProfileCard: React.FC<ProfileCardProps> = ({ profile, onLike, isVisible })
             </View>
           )}
         </View>
-    </Pressable> // End of main Pressable for double-tap
+    </Pressable> // End of main Pressable
   );
 };
 
-// --- Styles --- (Adjusted for full-width card and potentially larger content)
+// --- Styles --- (Styles using carouselHeight will automatically adjust)
 const styles = StyleSheet.create({
   card: {
-    flex: 1, // Make card fill its container (important for story view)
+    // flex: 1, // Removed flex: 1 to allow card to size naturally based on content
     backgroundColor: '#ffffff',
-    // Removed margins, border radius - let the container handle it
-    width: cardWidth, // Takes full width passed by FlatList/View
+    // Adjusted width slightly to provide minimal horizontal padding if needed within ProfileScreen's layout
+    width: screenWidth * 0.95, // Example: 95% of screen width
+    alignSelf: 'center', // Center the card if its container allows
+    // Removed margins, border radius - let the container handle it if needed
     overflow: 'hidden', // Keep content clipped
+    marginBottom: 10, // Add some margin below the card if needed
+    borderRadius: 12, // Added border radius for better visual separation
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2, },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3, // For Android shadow
   },
   // --- Image Area Styles ---
   carouselContainer: {
-    height: carouselHeight,
+    height: carouselHeight, // *** Uses the modified constant ***
     width: '100%',
     backgroundColor: '#e0e0e0', // Placeholder background
     position: 'relative', // Needed for absolute positioning of controls
+    // Add border radius to top corners if card has overall radius
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    overflow: 'hidden', // Ensure image respects the radius
   },
   flatList: {
     flex: 1,
@@ -314,7 +334,9 @@ const styles = StyleSheet.create({
     // No specific content style needed here usually
   },
   carouselItemContainer: {
-    width: cardWidth, // Each item takes full width
+    // Width should match the container's width (which is now 95% of screen)
+     width: screenWidth * 0.95, // Match card width
+    // width: cardWidth, // Original: used full screen width constant
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
@@ -325,11 +347,13 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   imagePlaceholder: {
-    height: carouselHeight,
+    height: carouselHeight, // *** Uses the modified constant ***
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f0f0f0',
+    borderTopLeftRadius: 12, // Match container
+    borderTopRightRadius: 12,
   },
   imagePlaceholderText: {
     marginTop: 10,
@@ -350,110 +374,108 @@ const styles = StyleSheet.create({
   // --- Content Area Styles ---
   content: {
     paddingHorizontal: 15,
-    paddingVertical: 15,
-    // Removed fixed height, let content determine size
+    paddingTop: 15, // Keep top padding
+    paddingBottom: 10, // Slightly reduce bottom padding if needed
   },
   nameAgeText: {
-    fontSize: 24, // Slightly larger
+    fontSize: 22, // Slightly smaller
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 12,
+    marginBottom: 10, // Slightly reduced margin
   },
   detailSection: {
-    marginBottom: 12,
+    marginBottom: 10, // Slightly reduced margin
   },
   detailLabel: {
-    fontSize: 14,
+    fontSize: 13, // Slightly smaller
     fontWeight: '600',
-    color: '#666', // Slightly lighter
-    marginBottom: 5,
-    textTransform: 'uppercase', // Style preference
+    color: '#666',
+    marginBottom: 4, // Slightly reduced margin
+    textTransform: 'uppercase',
   },
   detailText: {
-    fontSize: 16,
+    fontSize: 15, // Slightly smaller
     color: '#444',
-    marginBottom: 8,
-    lineHeight: 22,
+    marginBottom: 6, // Slightly reduced margin
+    lineHeight: 20, // Adjust line height
   },
    detailTextValue: {
-     fontSize: 16,
+     fontSize: 15, // Slightly smaller
      color: '#444',
-     lineHeight: 22,
+     lineHeight: 20, // Adjust line height
    },
   bioText: {
-    fontSize: 16,
+    fontSize: 15, // Slightly smaller
     color: '#444',
-    lineHeight: 23,
+    lineHeight: 21, // Adjust line height
   },
-  // --- Badge Styles --- (Adjusted for potentially longer text)
+  // --- Badge Styles --- (Adjusted slightly)
   badgeContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    marginTop: 2, // Add tiny margin top
   },
   badge: {
-    backgroundColor: '#FFA07A', // Light Salmon - adjust color
-    borderRadius: 15, // Keep rounded
-    paddingVertical: 6,
-    paddingHorizontal: 12, // Allow more space for text
-    marginRight: 8,
-    marginBottom: 8,
-    // Removed fixed height/width
+    backgroundColor: '#FFA07A',
+    borderRadius: 15,
+    paddingVertical: 5, // Slightly reduced vertical padding
+    paddingHorizontal: 10, // Slightly reduced horizontal padding
+    marginRight: 6,
+    marginBottom: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.15,
     shadowRadius: 1.00,
     elevation: 1,
   },
   badgeText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600', // Slightly less bold
+    fontSize: 12, // Slightly smaller
+    fontWeight: '600',
   },
 
-  // --- Carousel Controls & Pagination Styles ---
+  // --- Carousel Controls & Pagination Styles --- (Unchanged functionality)
   carouselControl: {
     position: 'absolute',
     top: '50%',
-    marginTop: -18, // Adjust based on icon size
-    // Removed background for cleaner look
-    zIndex: 10, // Ensure controls are above image
+    marginTop: -18,
+    zIndex: 10,
   },
-  carouselPrev: { left: 5 }, // Closer to edge
-  carouselNext: { right: 5 }, // Closer to edge
-  controlIconShadow: { // Add subtle shadow to icons for visibility
+  carouselPrev: { left: 8 }, // Adjusted slightly for card padding
+  carouselNext: { right: 8 }, // Adjusted slightly for card padding
+  controlIconShadow: {
       textShadowColor: 'rgba(0, 0, 0, 0.6)',
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 2,
   },
   paginationContainer: {
     position: 'absolute',
-    bottom: 10, // Position dots above content
+    bottom: 8, // Adjusted slightly
     left: 0,
     right: 0,
     flexDirection: 'row',
-    justifyContent: 'center', // Center dots horizontally
+    justifyContent: 'center',
     alignItems: 'center',
-    // Removed dark background, dots might need more contrast now
     paddingVertical: 5,
     zIndex: 10,
   },
   paginationDot: {
-    width: 7, // Slightly smaller dots
+    width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)', // Semi-transparent white
+    backgroundColor: 'rgba(255, 255, 255, 0.6)', // Increased visibility slightly
     marginHorizontal: 4,
-    // Add a subtle border for better visibility on light images
     borderWidth: 0.5,
-    borderColor: 'rgba(0, 0, 0, 0.2)',
+    borderColor: 'rgba(0, 0, 0, 0.3)', // Slightly darker border
   },
   paginationDotActive: {
-    backgroundColor: '#ffffff', // Solid white for active
-    width: 8, // Slightly larger active dot
+    backgroundColor: '#ffffff',
+    width: 8,
     height: 8,
     borderRadius: 4,
-    borderColor: 'rgba(0, 0, 0, 0.0)', // Remove border for active
+    borderColor: 'rgba(0, 0, 0, 0.0)',
   },
 });
 
-export default React.memo(ProfileCard); // Memoize for performance if props don't change often
+// Memoize for performance, especially useful if props like `isVisible` change often
+export default React.memo(ProfileCard);

@@ -2,27 +2,27 @@
 
 // IMPORTANT: react-native-gesture-handler import must be at the very top
 import 'react-native-get-random-values';
-import 'react-native-gesture-handler';
+import 'react-native-gesture-handler'; // <--- CORRECT: Import is present
 import React from 'react';
-import { ActivityIndicator, View, StyleSheet, Text, TouchableOpacity } from 'react-native'; // Added TouchableOpacity
+import { ActivityIndicator, View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import {
     NavigationContainer,
     NavigatorScreenParams,
     DefaultTheme as NavigationDefaultTheme,
     DarkTheme as NavigationDarkTheme,
-    useNavigation // Added useNavigation hook import
+    useNavigation
 } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationOptions, NativeStackHeaderProps } from '@react-navigation/native-stack';
-import { createBottomTabNavigator, BottomTabHeaderProps } from '@react-navigation/bottom-tabs'; // Added BottomTabHeaderProps
+import { createBottomTabNavigator, BottomTabHeaderProps } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler'; // <--- CORRECT: Import is present
 
 // Import Contexts & Providers
-import { AuthProvider, useAuth } from './src/contexts/AuthContext'; // Adjust path if needed
-import { DiscoveryProvider } from './src/contexts/DiscoveryContext'; // Adjust path if needed
-import { ThemeProvider, useTheme } from './src/contexts/ThemeContext'; // Adjust path if needed
-import { LinearGradient } from 'expo-linear-gradient'; // Import LinearGradient (already added)
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { DiscoveryProvider } from './src/contexts/DiscoveryContext';
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // --- Import Screens ---
 import AuthPage from './src/pages/AuthPage';
@@ -33,13 +33,12 @@ import DiscoverScreen from './src/pages/DiscoverScreen';
 import ProfileScreen from './src/pages/ProfileScreen';
 import EditProfileScreen from './src/pages/EditProfile';
 import EventsScreen from './src/pages/EventsScreen';
-import ConversationsScreen from './src/pages/ConversationsScreen'; // Adjust path if needed
+import ConversationsScreen from './src/pages/ConversationsScreen';
 
 // --- Import Icons ---
 import { Ionicons } from '@expo/vector-icons';
 
 // --- Type Definitions for Navigation ---
-// Unchanged Type Definitions...
 type AuthStackParamList = { Login: undefined; SignUp: undefined; };
 type OnboardingStackParamList = { CreateProfile: undefined; CreateBusinessProfileScreen: undefined; };
 type MainTabParamList = {
@@ -71,7 +70,7 @@ const MainTabNav = createBottomTabNavigator<MainTabParamList>();
 const RootStackNav = createNativeStackNavigator<RootStackParamList>();
 
 
-// --- Placeholder Screens (Keep as is) ---
+// --- Placeholder Screens ---
 function NotificationsScreen() { return <View style={styles.screen}><Text>Notifications Screen</Text></View>; }
 function ChatRoomScreen({ route }: any) {
     const { roomId, recipientName } = route.params;
@@ -87,15 +86,13 @@ function ChatRoomScreen({ route }: any) {
 }
 
 
-// --- Custom App Header Component --- (MODIFIED)
+// --- Custom App Header Component ---
 function AppHeader({ navigation, route, options }: NativeStackHeaderProps | BottomTabHeaderProps) {
     const { theme } = useTheme();
     const insets = useSafeAreaInsets();
     const canGoBack = navigation.canGoBack();
 
-    // Get gradient config from theme for header (assuming it's named 'primaryHeader')
     const headerGradientConfig = theme?.gradients?.primaryHeader;
-    // Determine if we should use the gradient
     const useGradientHeader = !theme?.isDark && !!headerGradientConfig;
 
     if (!theme) return null;
@@ -106,11 +103,11 @@ function AppHeader({ navigation, route, options }: NativeStackHeaderProps | Bott
 
     return (
         <HeaderContainerComponent
-            {...headerProps} // Spread colors, start, end from theme if using gradient
+            {...headerProps}
             style={[
                 styles.headerContainer,
                 {
-                    backgroundColor: !useGradientHeader ? theme.colors.headerBackground : undefined, // Fallback bg color
+                    backgroundColor: !useGradientHeader ? theme.colors.headerBackground : undefined,
                     paddingTop: insets.top,
                     height: (theme.header?.height || 60) + insets.top,
                 }
@@ -121,12 +118,11 @@ function AppHeader({ navigation, route, options }: NativeStackHeaderProps | Bott
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                         <Ionicons
                             name="chevron-back"
-                            size={theme.fonts?.sizes?.xxLarge || 45} // Ensure this matches spacer if needed
+                            size={theme.fonts?.sizes?.xxLarge || 45}
                             color={theme.colors.headerText}
                         />
                     </TouchableOpacity>
                 )}
-                {/* Removed the back button placeholder */}
                 <Text
                     style={[
                         styles.headerTitle,
@@ -134,8 +130,6 @@ function AppHeader({ navigation, route, options }: NativeStackHeaderProps | Bott
                             color: theme.colors.headerText,
                             fontSize: theme.fonts?.sizes?.xxLarge || 26,
                             fontWeight: 'bold',
-                            // REMOVED conditional marginLeft: !canGoBack ? styles.rightSpacer.width : 0
-                            // Title will now naturally align left when back button is not present
                         }
                     ]}
                     numberOfLines={1}
@@ -152,9 +146,8 @@ function AppHeader({ navigation, route, options }: NativeStackHeaderProps | Bott
 
 // --- Navigator Components ---
 
-// AuthStack (Keep as is)
+// AuthStack
 function AuthStack() {
-    // ... (no changes)
      return (
         <AuthStackNav.Navigator screenOptions={{ headerShown: false }}>
             <AuthStackNav.Screen name="Login" component={AuthPage} />
@@ -163,9 +156,8 @@ function AuthStack() {
     );
 }
 
-// OnboardingStack (Keep as is)
+// OnboardingStack
 function OnboardingStack({ initialRouteName }: { initialRouteName?: keyof OnboardingStackParamList }) {
-    // ... (no changes)
     const { theme } = useTheme();
     if (!theme) { return <View style={styles.screen}><ActivityIndicator /></View>; }
     const screenOptions: NativeStackNavigationOptions = {
@@ -183,9 +175,9 @@ function OnboardingStack({ initialRouteName }: { initialRouteName?: keyof Onboar
     );
 }
 
-// --- MainTabs --- (Keep as is from previous step)
+// --- MainTabs ---
 function MainTabs() {
-    const { theme } = useTheme(); // Get theme here
+    const { theme } = useTheme();
 
     if (!theme) {
          return (
@@ -195,25 +187,21 @@ function MainTabs() {
         );
     }
 
-    // Get the gradient config for the tab bar ONCE outside screenOptions
     const tabBarGradientConfig = theme.gradients?.tabBarBackground;
-    // Determine if we should use the gradient (light theme AND gradient config exists)
     const useGradientTabBar = !theme.isDark && !!tabBarGradientConfig;
 
     return (
         <MainTabNav.Navigator
             sceneContainerStyle={{ backgroundColor: theme.colors.background }}
             screenOptions={({ route }) => ({
-                headerShown: false, // No header for individual tabs
+                headerShown: false,
                 tabBarActiveTintColor: theme.colors.primary,
                 tabBarInactiveTintColor: theme.colors.textSecondary,
                 tabBarStyle: {
-                    // Remove backgroundColor - background is now handled by tabBarBackground prop
-                    // backgroundColor: theme.colors.card,
-                    borderTopColor: theme.colors.border, // Keep border color
+                    borderTopColor: theme.colors.border,
+                    borderTopWidth: 0, // Explicitly set the border width to 0
                 },
                 tabBarIcon: ({ focused, color, size }) => {
-                    // Icon logic remains the same
                     let iconName: keyof typeof Ionicons.glyphMap = 'alert-circle-outline';
                     if (route.name === 'DiscoverTab') iconName = focused ? 'search' : 'search-outline';
                     else if (route.name === 'EventsTab') iconName = focused ? 'heart' : 'heart-outline';
@@ -222,31 +210,25 @@ function MainTabs() {
                     else if (route.name === 'NotificationsTab') iconName = focused ? 'notifications' : 'notifications-outline';
                     return <Ionicons name={iconName} size={size} color={color} />;
                 },
-                // *** ADDED: tabBarBackground prop ***
                 tabBarBackground: () => {
-                    // Check if we should use the gradient (calculated above)
                     if (useGradientTabBar && tabBarGradientConfig) {
-                        // Render the gradient if applicable
                         return (
                             <LinearGradient
-                                {...tabBarGradientConfig} // Spread colors, start, end from theme
-                                style={StyleSheet.absoluteFill} // Fill the tab bar area
+                                {...tabBarGradientConfig}
+                                style={StyleSheet.absoluteFill}
                             />
                         );
                     } else {
-                        // Otherwise, render a plain View with the fallback card color
-                        // This ensures dark mode uses its solid background color
                         return (
                             <View style={{
                                 flex: 1,
-                                backgroundColor: theme.colors.card // Use card color from theme
+                                backgroundColor: theme.colors.card
                             }} />
                         );
                     }
-                }, // --- End tabBarBackground ---
+                },
             })}
         >
-            {/* Screens remain the same */}
             <MainTabNav.Screen name="DiscoverTab" component={DiscoverScreen} options={{ title: 'Discover' }} />
             <MainTabNav.Screen name="EventsTab" component={EventsScreen} options={{ title: 'Liked Profiles' }} />
             <MainTabNav.Screen name="ConversationsTab" component={ConversationsScreen} options={{ title: 'Messages' }} />
@@ -257,9 +239,8 @@ function MainTabs() {
 }
 // --- End MainTabs Modification ---
 
-// --- RootStack --- (Keep as is - applies custom header globally)
+// --- RootStack ---
 function RootStack() {
-    // ... (no changes)
      const { theme } = useTheme();
 
     if (!theme) {
@@ -287,9 +268,8 @@ function RootStack() {
 // --- End RootStack ---
 
 
-// --- AppContent (Keep as is) ---
+// --- AppContent ---
 function AppContent() {
-    // ... (no changes)
     const { session, loadingAuth } = useAuth();
     const { theme } = useTheme();
     if (loadingAuth || !theme) {
@@ -301,6 +281,11 @@ function AppContent() {
         );
     }
     if (session && session.user) {
+        // Logic to determine onboarding completion should be here
+        // For now, assume if user exists, main app is shown
+        // Replace with your actual onboarding check logic if needed
+        // Example: const isOnboardingComplete = session.user.profileComplete;
+        // if (!isOnboardingComplete) { return <OnboardingStack />; }
         return <RootStack />;
     } else {
         return <AuthStack />;
@@ -309,9 +294,8 @@ function AppContent() {
 // --- End AppContent ---
 
 
-// --- Main App Component --- (Keep as is)
+// --- Main App Component ---
 export default function App() {
-    // ... (no changes)
     return (
         <ThemeProvider>
             <AppWithTheme />
@@ -319,9 +303,8 @@ export default function App() {
     );
 }
 
-// --- Helper component to access theme for Root View and Navigation --- (Keep as is)
+// --- Helper component to access theme for Root View and Navigation ---
 function AppWithTheme() {
-    // ... (no changes needed here for tab bar gradient)
      const { theme } = useTheme();
     if (!theme) { return <View style={styles.screen}><ActivityIndicator size="large" /></View>; }
     const navigationTheme = React.useMemo(() => {
@@ -331,7 +314,7 @@ function AppWithTheme() {
         };
     }, [theme]);
     return (
-        // Using standard background color here. Root background gradient applied separately if desired.
+        // CORRECT: GestureHandlerRootView wraps the main content
         <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.colors.background }}>
             <SafeAreaProvider>
                 <AuthProvider>
@@ -349,15 +332,14 @@ function AppWithTheme() {
 // --- End AppWithTheme ---
 
 
-// --- Styles --- (Keep as is, except removed backButtonPlaceholder)
+// --- Styles ---
 const styles = StyleSheet.create({
     screen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
-    headerContainer: { /* ... */ justifyContent: 'center', },
-    headerContent: { /* ... */ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, flex: 1, backgroundColor: 'transparent', },
-    backButton: { /* ... */ padding: 5, marginRight: 0, }, // Keep marginRight 0 or adjust as needed
-    // backButtonPlaceholder style definition is removed
-    headerTitle: { /* ... */ flex: 1, textAlign: 'left', }, // Ensures title aligns left within its flex container
-    rightSpacer: { /* ... */ width: (45 + 5*2), } // Keep for potential right-side balance
+    headerContainer: { justifyContent: 'center', },
+    headerContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, flex: 1, backgroundColor: 'transparent', },
+    backButton: { padding: 5, marginRight: 0, },
+    headerTitle: { flex: 1, textAlign: 'left', },
+    rightSpacer: { width: (45 + 5*2), } // Adjusted size based on potential icon size + padding
 });
 
 // Export RootStackParamList for use in other components
