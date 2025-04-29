@@ -11,11 +11,8 @@ import {
     LayoutAnimation,
     UIManager,
     ImageBackground,
-    // ADDED: For screen width calculation
-    // Dimensions is already imported, we'll use it below
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
-// --- ADDED IMPORTS ---
 import { PanGestureHandler, PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import Animated, {
     useSharedValue,
@@ -24,10 +21,8 @@ import Animated, {
     withSpring,
     interpolate,
     Extrapolate,
-    runOnJS, // To call JS functions from worklet
+    runOnJS,
 } from 'react-native-reanimated';
-// --- END ADDED IMPORTS ---
-
 
 // --- Define Business Listing Type (Keep as is) ---
 export interface BusinessListing {
@@ -58,10 +53,10 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// --- ADDED CONSTANTS ---
+// --- Constants (Keep as is) ---
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-const SWIPE_THRESHOLD = screenWidth * 0.3; // Trigger action after swiping 30% of screen width
-const ROTATION_DEG = 15; // Max rotation in degrees
+const SWIPE_THRESHOLD = screenWidth * 0.3;
+const ROTATION_DEG = 15;
 const SPRING_CONFIG = {
     damping: 15,
     stiffness: 100,
@@ -70,7 +65,6 @@ const SPRING_CONFIG = {
     restDisplacementThreshold: 0.01,
     restSpeedThreshold: 0.01,
 };
-// --- END ADDED CONSTANTS ---
 
 // --- Business Profile Card Component ---
 const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
@@ -79,104 +73,80 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
     onDismissBusiness,
 }) => {
     const [showDetails, setShowDetails] = useState(false);
-
-    // --- ADDED REANIMATED VALUES ---
     const translateX = useSharedValue(0);
-    const translateY = useSharedValue(0); // Optional: for a slight vertical movement on swipe
-    // --- END ADDED REANIMATED VALUES ---
+    const translateY = useSharedValue(0);
 
     const toggleDetails = () => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setShowDetails(!showDetails);
     };
 
-    // --- ADDED GESTURE HANDLER ---
-    type AnimatedGHContext = {
-        startX: number;
-        startY: number;
-    };
+    // --- Gesture Handler (Keep as is) ---
+    type AnimatedGHContext = { startX: number; startY: number; };
     const gestureHandler = useAnimatedGestureHandler<
         PanGestureHandlerGestureEvent,
         AnimatedGHContext
     >({
         onStart: (_, ctx) => {
             ctx.startX = translateX.value;
-            ctx.startY = translateY.value; // Store starting Y position
+            ctx.startY = translateY.value;
         },
         onActive: (event, ctx) => {
             translateX.value = ctx.startX + event.translationX;
-            // Optional: Add slight vertical movement tied to horizontal swipe
-            translateY.value = ctx.startY + event.translationY * 0.1; // Dampen vertical movement
+            translateY.value = ctx.startY + event.translationY * 0.1;
         },
         onEnd: (event) => {
-            // Check if swipe distance exceeds threshold
             if (Math.abs(translateX.value) > SWIPE_THRESHOLD) {
-                // Determine swipe direction
                 const direction = Math.sign(translateX.value);
-                const targetX = direction * screenWidth * 1.5; // Move card off-screen
-
-                // Animate off-screen and trigger action
+                const targetX = direction * screenWidth * 1.5;
                 translateX.value = withSpring(
                     targetX,
                     SPRING_CONFIG,
                     (finished) => {
                         if (finished) {
-                            // IMPORTANT: Use runOnJS to call props from the UI thread
-                            if (direction > 0) { // Swiped right (Like)
-                                runOnJS(onLikeBusiness)();
-                            } else { // Swiped left (Dismiss)
-                                runOnJS(onDismissBusiness)();
-                            }
+                            if (direction > 0) { runOnJS(onLikeBusiness)(); }
+                            else { runOnJS(onDismissBusiness)(); }
                         }
                     }
                 );
-                // Also animate Y off-screen if you added vertical movement
-                 translateY.value = withSpring(event.translationY * 0.5, SPRING_CONFIG); // Follow swipe direction slightly
-
+                 translateY.value = withSpring(event.translationY * 0.5, SPRING_CONFIG);
             } else {
-                // Animate back to center if threshold not met
                 translateX.value = withSpring(0, SPRING_CONFIG);
-                translateY.value = withSpring(0, SPRING_CONFIG); // Return Y to center
+                translateY.value = withSpring(0, SPRING_CONFIG);
             }
         },
     });
-    // --- END ADDED GESTURE HANDLER ---
 
-    // --- ADDED ANIMATED STYLE ---
+    // --- Animated Style (Keep as is) ---
     const animatedCardStyle = useAnimatedStyle(() => {
-        // Interpolate rotation based on horizontal translation
         const rotateZ = interpolate(
             translateX.value,
             [-screenWidth / 2, 0, screenWidth / 2],
             [-ROTATION_DEG, 0, ROTATION_DEG],
-            Extrapolate.CLAMP // Don't rotate more than ROTATION_DEG
+            Extrapolate.CLAMP
         );
-
-        // Interpolate opacity (fade out slightly when swiping away)
         const opacity = interpolate(
              Math.abs(translateX.value),
-             [0, SWIPE_THRESHOLD * 1.5], // Start fading after threshold / 2
-             [1, 0.7], // Fade from 1 to 0.7
+             [0, SWIPE_THRESHOLD * 1.5],
+             [1, 0.7],
              Extrapolate.CLAMP
          );
-
         return {
             opacity,
             transform: [
                 { translateX: translateX.value },
-                { translateY: translateY.value }, // Apply vertical translation
-                { rotateZ: `${rotateZ}deg` }, // Apply rotation
+                { translateY: translateY.value },
+                { rotateZ: `${rotateZ}deg` },
             ],
         };
     });
-    // --- END ADDED ANIMATED STYLE ---
 
 
     if (!listing) {
-        return null; // Or a placeholder/loading state
+        return null;
     }
 
-    // --- Keep existing calculations ---
+    // --- Calculations (Keep as is) ---
     const locationParts = [listing.address_city, listing.address_state].filter(Boolean);
     const formattedLocation = locationParts.join(', ');
     const primaryImageUrl = listing.listing_photos?.[0];
@@ -189,14 +159,10 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
         listing.address_country
     ].filter(Boolean).join(', ');
     const hasDetailsToShow = listing.description || listing.phone_number || fullAddress || listing.category;
-    // --- End existing calculations ---
 
     return (
-        // --- WRAP with PanGestureHandler ---
         <PanGestureHandler onGestureEvent={gestureHandler}>
-            {/* --- WRAP ImageBackground and its content with Animated.View --- */}
             <Animated.View style={[styles.animatedWrapper, animatedCardStyle]}>
-                {/* Container for the card content excluding details */}
                 <View style={styles.cardContentContainer}>
                     <ImageBackground
                         source={{ uri: primaryImageUrl || fallbackImageUrl }}
@@ -206,13 +172,15 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                             console.warn(`Image load error for listing ${listing.id} (URL: ${primaryImageUrl || fallbackImageUrl}): ${error.nativeEvent.error}`);
                         }}
                     >
-                        {/* Content that overlays the image */}
+                        {/* --- MOVED TITLE ROW TO TOP --- */}
+                        <View style={styles.titleRow}>
+                             <Text style={styles.title} numberOfLines={2}>{listing.business_name || 'Unnamed Business'}</Text>
+                        </View>
+
+                        {/* Content that overlays the image (excluding title) */}
                         <View style={styles.gradientOverlay}>
                             <View style={styles.contentOverlay}>
-                                {/* Title Row */}
-                                <View style={styles.titleRow}>
-                                    <Text style={styles.title} numberOfLines={2}>{listing.business_name || 'Unnamed Business'}</Text>
-                                </View>
+                                {/* Title Row was previously here */}
 
                                 {/* Location Info */}
                                 {formattedLocation ? (
@@ -231,7 +199,7 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                                             <Text style={styles.categoryBadgeText}>{listing.category}</Text>
                                         </View>
                                     </View>
-                                ) : <View style={{ marginBottom: 15 }} /> /* Add margin if no badge */}
+                                ) : <View style={{ marginBottom: 15 }} />}
 
 
                                 {/* Details Toggle Section */}
@@ -256,13 +224,13 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                         <View style={styles.actionButtonsContainer}>
                             <TouchableOpacity
                                 style={[styles.actionButton, styles.skipButton]}
-                                onPress={onDismissBusiness} // Kept original onPress
+                                onPress={onDismissBusiness}
                             >
                                 <Ionicons name="close" size={32} color="#F15A6A" />
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.actionButton, styles.likeButton]}
-                                onPress={onLikeBusiness} // Kept original onPress
+                                onPress={onLikeBusiness}
                             >
                                 <Ionicons name="heart" size={30} color="#FFFFFF" />
                             </TouchableOpacity>
@@ -271,20 +239,18 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                     </ImageBackground> {/* End ImageBackground */}
                 </View>
 
-                {/* --- Collapsible Details Section - Remains OUTSIDE the Animated.View --- */}
-                 {/* NOTE: If showDetails is true, this appears BELOW the swipable card */}
+                {/* Collapsible Details Section */}
                 {showDetails && (
                     <ScrollView style={styles.detailsContainer}
                         nestedScrollEnabled={true}
                     >
-                        {/* Description */}
+                         {/* Description / Phone / Address ... */}
                         {listing.description ? (
                             <View style={styles.detailsBlock}>
                                 <Text style={styles.detailsHeading}>Description</Text>
                                 <Text style={styles.detailsDescription}>{listing.description}</Text>
                             </View>
                         ) : null }
-                        {/* Phone */}
                         {listing.phone_number ? (
                             <View style={styles.detailsBlock}>
                                 <Text style={styles.detailsHeading}>Phone</Text>
@@ -294,7 +260,6 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                                 </View>
                             </View>
                         ) : null }
-                        {/* Address */}
                         {fullAddress ? (
                             <View style={styles.detailsBlock}>
                                 <Text style={styles.detailsHeading}>Address</Text>
@@ -306,63 +271,45 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                         ) : null }
                     </ScrollView>
                 )}
-            {/* --- END WRAP Animated.View --- */}
             </Animated.View>
-        {/* --- END WRAP PanGestureHandler --- */}
         </PanGestureHandler>
     );
 };
 
-// --- Styles --- (Modify and Add)
-// const { height: screenHeight } = Dimensions.get('window'); // Already defined above
-
+// --- Styles ---
 const styles = StyleSheet.create({
-    // --- ADDED STYLES ---
     animatedWrapper: {
-        flex: 1, // Takes available space until details are shown
-        // We apply transforms here, so no need for position: 'absolute' on the wrapper itself
-        // The shadow/elevation might be better applied here if needed globally for the animated part
+        flex: 1,
     },
     cardContentContainer: {
-        flex: 1, // Make this container fill the animated wrapper
-        borderRadius: 16, // Apply border radius here
-        overflow: 'hidden', // Clip the ImageBackground to the rounded corners
-        backgroundColor: '#E0E0E0', // Background color for loading/fallback
-        shadowColor: '#000', // Optional: Add shadow to the card itself
+        flex: 1,
+        borderRadius: 8,
+        overflow: 'hidden',
+        backgroundColor: '#E0E0E0',
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
         shadowRadius: 5,
         elevation: 4,
     },
-    // --- END ADDED STYLES ---
-
-    // --- MODIFIED/KEPT STYLES ---
-    container: { // This style is no longer used directly on the root View, but keep it for potential future use? Or remove.
-        flex: 1,
-        // borderRadius: 16, // Moved to cardContentContainer
-        // overflow: 'hidden', // Moved to cardContentContainer
-        // backgroundColor: '#E0E0E0', // Moved to cardContentContainer
-        flexDirection: 'column', // Important for layout with details below
-    },
     imageBackground: {
-        flex: 1, // Take up all space within cardContentContainer
+        flex: 1,
         width: '100%',
-        justifyContent: 'flex-end',
-        // backgroundColor: '#E0E0E0', // Set on cardContentContainer instead
-        position: 'relative', // Keep for absolute positioning of buttons inside
+        justifyContent: 'flex-end', // Keeps gradient and buttons at bottom
+        position: 'relative',
     },
-    // Keep all other styles as they were: gradientOverlay, contentOverlay, titleRow, title, infoRow, infoText, icon, badgeRow, badge, categoryBadge, categoryBadgeText, detailsToggleSection, detailsButton, detailsButtonText, actionButtonsContainer, actionButton, skipButton, likeButton
-
-     gradientOverlay: {
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
-        paddingTop: 40,
-        paddingBottom: 80, // Ensure enough space above buttons
-    },
-    contentOverlay: {
-        paddingHorizontal: 16,
-    },
+    // --- MODIFIED TITLE ROW STYLE ---
     titleRow: {
-        marginBottom: 8,
+        position: 'absolute',    // Position independently
+        top: 0,                  // Align to top
+        left: 0,                 // Align to left
+        right: 0,                // Span width to handle padding
+        paddingTop: 16,          // Padding from the top edge
+        paddingHorizontal: 16,   // Padding from left/right edges
+        paddingBottom: 8,        // Space below title text
+        zIndex: 2,               // Ensure it's above gradient/image content
+        // Optional: Add background for readability
+        // backgroundColor: 'rgba(0, 0, 0, 0.3)',
     },
     title: {
         fontSize: 26,
@@ -372,10 +319,21 @@ const styles = StyleSheet.create({
         textShadowOffset: { width: 1, height: 1 },
         textShadowRadius: 4,
     },
+     gradientOverlay: {
+        backgroundColor: 'rgba(0, 0, 0, 0.4)', // Gradient only at the bottom now
+        // paddingTop: 40, // Title is no longer inside, adjust if needed
+        paddingBottom: 80, // Ensure space above buttons
+    },
+    contentOverlay: {
+        paddingHorizontal: 16,
+        // Title Row is removed from here
+    },
     infoRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 6,
+         // Add paddingTop if gradientOverlay paddingTop is removed/reduced
+        // paddingTop: 10,
     },
     infoText: {
         fontSize: 14,
@@ -383,13 +341,11 @@ const styles = StyleSheet.create({
         marginLeft: 6,
         flex: 1,
     },
-    icon: {
-        // Style for icons in the overlay if needed
-    },
+    icon: { /* Style as needed */ },
     badgeRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        marginBottom: 15, // Space below badge OR placeholder margin
+        marginBottom: 15,
     },
     badge: {
         paddingHorizontal: 10,
@@ -420,83 +376,38 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginRight: 5,
     },
-    // Keep Details Container styles
     detailsContainer: {
         paddingHorizontal: 16,
         paddingVertical: 16,
-        maxHeight: screenHeight * 0.25, // Limit height
+        maxHeight: screenHeight * 0.25,
         borderTopWidth: 1,
         borderTopColor: '#eee',
-        // These are important for ScrollView within potentially limited height
         flexGrow: 0,
         flexShrink: 1,
-        backgroundColor: '#ffffff', // Details have white background
-        // Removed position: 'absolute', it should naturally flow below the card content
-        // Ensure it doesn't overlap if the card content has shadow/elevation
-        // Add margin top if needed to clear shadow visually
-        // marginTop: 5, // Example if shadow needs clearance
+        backgroundColor: '#ffffff',
     },
-    detailsBlock: {
-        marginBottom: 15,
-    },
+    detailsBlock: { marginBottom: 15, },
     detailsHeading: {
-        fontSize: 13,
-        fontWeight: 'bold',
-        color: '#888',
-        textTransform: 'uppercase',
-        marginBottom: 5,
+        fontSize: 13, fontWeight: 'bold', color: '#888',
+        textTransform: 'uppercase', marginBottom: 5,
     },
-    detailsDescription: {
-        fontSize: 15,
-        color: '#333',
-        lineHeight: 22,
-    },
-    detailsInfoRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-    },
-    iconDetails: {
-        marginRight: 10,
-        marginTop: 2,
-        color: '#555',
-        width: 16,
-    },
-    detailsInfoText: {
-        fontSize: 14,
-        color: '#555',
-        flex: 1,
-        lineHeight: 20,
-    },
-    // Keep Action Buttons styles
+    detailsDescription: { fontSize: 15, color: '#333', lineHeight: 22, },
+    detailsInfoRow: { flexDirection: 'row', alignItems: 'flex-start', },
+    iconDetails: { marginRight: 10, marginTop: 2, color: '#555', width: 16, },
+    detailsInfoText: { fontSize: 14, color: '#555', flex: 1, lineHeight: 20, },
     actionButtonsContainer: {
         position: 'absolute',
-        bottom: 20,
-        left: 0,
-        right: 0,
-        zIndex: 1, // Ensure buttons are above gradient
-        flexDirection: 'row',
-        justifyContent: 'space-evenly',
-        alignItems: 'center',
+        bottom: 20, left: 0, right: 0, zIndex: 1,
+        flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center',
     },
     actionButton: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 6,
+        width: 64, height: 64, borderRadius: 32,
+        justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3, shadowRadius: 4, elevation: 6,
     },
-    skipButton: {
-        // Specific styles if needed
-    },
-    likeButton: {
-        backgroundColor: '#4CAF50',
-    },
+    skipButton: { /* Specific styles if needed */ },
+    likeButton: { backgroundColor: '#4CAF50', },
 });
 
 export default BusinessProfileCard;

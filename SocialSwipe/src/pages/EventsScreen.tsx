@@ -1,35 +1,39 @@
-// src/pages/EventsScreen.tsx (MODIFIED for Liker Profile Swiping Modal)
+// src/pages/EventsScreen.tsx
 
 import React, { useState, useCallback, useEffect } from 'react';
 import {
     View, Text, StyleSheet, FlatList, ActivityIndicator,
-    SafeAreaView, Modal, TouchableOpacity, Alert // Added Modal, TouchableOpacity, Alert
+    SafeAreaView, Modal, TouchableOpacity, Alert
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useDiscovery, BusinessListing } from '../contexts/DiscoveryContext'; // Adjust path
 import LikedListingItem from '../components/LikedListingItem'; // Use the updated item
-
-// --- ADDED: Imports for Liker Profiles ---
 import { useAuth } from '../contexts/AuthContext'; // Need user ID for fetching/swiping
 import { supabase } from '../lib/supabaseClient'; // Adjust path
-import { Profile as IndividualProfile } from '../screens/EditProfileScreen'; // Adjust path/name
-import ProfileCardStack from '../components/ProfileStoryView'; // Import the new stack component
-import { Ionicons } from '@expo/vector-icons'; // For close button
+import { Profile as StoryProfile } from '../components/ProfileCard'; // Adjust path if needed
+import ProfileCardStack from '../components/ProfileStoryView'; // Keep alias if preferred
+import { Ionicons } from '@expo/vector-icons';
+import { lightTheme } from '../theme/theme'; // Import for gradient colors
 
 const EventsScreen: React.FC = () => {
-    // Existing Context Hooks
+    // --- State and Context Hooks ---
     const {
         likedListingsData, isLoadingListings, unlikeListing, fetchDiscoveryData
     } = useDiscovery();
-    const { user } = useAuth(); // Get current user
-
-    // --- STATE for Modal and Liker Profiles ---
+    const { user } = useAuth();
     const [isLikerModalVisible, setIsLikerModalVisible] = useState(false);
     const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
-    const [likerProfiles, setLikerProfiles] = useState<IndividualProfile[]>([]);
+    const [likerProfiles, setLikerProfiles] = useState<StoryProfile[]>([]);
     const [isLoadingLikers, setIsLoadingLikers] = useState<boolean>(false);
     const [likerError, setLikerError] = useState<string | null>(null);
 
-    // --- UNLIKE HANDLER: Remains the same ---
+    // --- Gradient Colors ---
+    const gradientColors = [
+        lightTheme.colors.primary,
+        lightTheme.colors.background
+    ];
+
+    // --- UNLIKE HANDLER ---
     const handleUnlike = useCallback((listingId: string) => {
         console.log(`EventsScreen: Unliking listing with ID: ${listingId}`);
         unlikeListing(listingId);
@@ -39,123 +43,174 @@ const EventsScreen: React.FC = () => {
     const handleItemPress = useCallback((listingId: string) => {
         console.log(`EventsScreen: Item pressed, opening likers for Listing ID: ${listingId}`);
         setSelectedListingId(listingId); // Set the listing ID
-        setIsLikerModalVisible(true);    // Show the modal
+        setIsLikerModalVisible(true);   // Show the modal
         setLikerError(null);            // Reset error state
         // Fetching will be triggered by useEffect below
     }, []);
 
     // --- HANDLER to close Modal ---
-    const handleCloseLikerModal = () => {
+    const handleCloseLikerModal = useCallback(() => {
         setIsLikerModalVisible(false);
         setSelectedListingId(null);
         setLikerProfiles([]);
         setIsLoadingLikers(false);
         setLikerError(null);
-    };
+    }, []);
 
-    // --- EFFECT to Fetch Likers when Modal Opens for a Listing ---
-    useEffect(() => {
-        const fetchLikersForListing = async (listingId: string) => {
-            if (!user) {
-                setLikerError("You must be logged in to see likers.");
-                setIsLoadingLikers(false);
-                return;
-            }
+    // --- REUSABLE LIKER FETCH LOGIC ---
+    const fetchLikersForListing = useCallback(async (listingId: string) => {
+        if (!user) {
+            setLikerError("You must be logged in to see likers.");
+            setIsLoadingLikers(false);
+            return;
+        }
 
-            console.log(`[EventsScreen] Fetching likers for Listing ID: ${listingId}`);
-            setIsLoadingLikers(true);
-            setLikerProfiles([]); // Clear previous profiles
-            setLikerError(null);
+        console.log(`[EventsScreen] Fetching/Re-fetching likers for Listing ID: ${listingId}`);
+        setIsLoadingLikers(true);
+        setLikerProfiles([]); // Clear previous profiles
+        setLikerError(null);
 
-            try {
-                // 1. Fetch user IDs who liked the specific listing (excluding the current user)
-                const { data: likeData, error: likeError } = await supabase
-                    .from('profile_likes')
-                    .select('liker_user_id')
-                    .eq('liked_listing_id', listingId)
-                    .neq('liker_user_id', user.id); // Exclude self
+        try {
+            // 1. Fetch user IDs who liked the specific listing (excluding the current user)
+            const { data: likeData, error: likeError } = await supabase
+                .from('profile_likes') // Ensure this table name is correct
+                .select('liker_user_id')
+                .eq('liked_listing_id', listingId)
+                .neq('liker_user_id', user.id); // Exclude self
 
-                if (likeError) throw likeError;
+            if (likeError) throw likeError;
 
-                if (likeData && likeData.length > 0) {
-                    const likerIds = likeData.map(like => like.liker_user_id);
-                    console.log(`[EventsScreen] Found Liker IDs:`, likerIds);
+            if (likeData && likeData.length > 0) {
+                const likerIds = likeData.map(like => like.liker_user_id);
+                console.log(`[EventsScreen] Found Liker IDs:`, likerIds);
 
-                    // 2. Fetch profiles for these liker IDs
-                    const { data: profileData, error: profileError } = await supabase
-                        .from('individual_profiles')
-                        .select('*') // Select fields needed by ProfileCard
-                        .in('user_id', likerIds);
+                // 2. Fetch profiles for these liker IDs
+                const { data: profileData, error: profileError } = await supabase
+                    .from('individual_profiles') // Ensure this table name is correct
+                    .select(
+                        `user_id,
+                         created_at,
+                         updated_at,
+                         first_name,
+                         last_name,
+                         date_of_birth,
+                         gender,
+                         bio,
+                         interests,
+                         location,
+                         looking_for,
+                         profile_pictures`
+                    )
+                    .in('user_id', likerIds);
 
-                    if (profileError) throw profileError;
+                if (profileError) throw profileError;
 
-                    if (profileData) {
-                        console.log(`[EventsScreen] Successfully fetched ${profileData.length} liker profiles.`);
-                        // TODO: Potentially filter out users the current user has already swiped on for this context?
-                        setLikerProfiles(profileData as IndividualProfile[]);
-                    } else {
-                        setLikerProfiles([]);
-                    }
+                if (profileData) {
+                    console.log(`[EventsScreen] Successfully fetched ${profileData.length} raw liker profiles.`);
+                    const formattedProfiles = profileData.map((rawProfile): StoryProfile => {
+                        // Provide defaults for potentially missing or optional fields
+                        const createdAt = rawProfile.created_at || new Date().toISOString();
+                        const updatedAt = rawProfile.updated_at || new Date().toISOString();
+                        const dob = rawProfile.date_of_birth || '';
+
+                        // Handle 'interests'
+                        let interestsArray: string[] | null = null;
+                        if (Array.isArray(rawProfile.interests)) {
+                            interestsArray = rawProfile.interests.filter((i): i is string => typeof i === 'string');
+                        } else if (typeof rawProfile.interests === 'string' && rawProfile.interests.trim() !== '') {
+                            interestsArray = [rawProfile.interests];
+                        }
+
+                        // Handle 'profile_pictures'
+                        let pictures: string[] | null = null;
+                        if (Array.isArray(rawProfile.profile_pictures)) {
+                            pictures = rawProfile.profile_pictures.filter((p): p is string => typeof p === 'string');
+                        } else if (typeof rawProfile.profile_pictures === 'string' && rawProfile.profile_pictures.trim() !== '') {
+                            pictures = [rawProfile.profile_pictures];
+                        }
+
+                        // Return object conforming to the Profile interface
+                        return {
+                            id: rawProfile.user_id,
+                            created_at: createdAt,
+                            updated_at: updatedAt,
+                            first_name: rawProfile.first_name || 'User',
+                            last_name: rawProfile.last_name || null,
+                            date_of_birth: dob,
+                            gender: rawProfile.gender || 'Not specified',
+                            bio: rawProfile.bio || null,
+                            interests: interestsArray,
+                            location: rawProfile.location || null,
+                            looking_for: rawProfile.looking_for || null,
+                            profile_pictures: pictures,
+                        };
+                    });
+
+                    setLikerProfiles(formattedProfiles);
                 } else {
-                    console.log('[EventsScreen] No other users found who liked this listing.');
                     setLikerProfiles([]);
                 }
-            } catch (error: any) {
-                console.error('[EventsScreen] Error fetching liker profiles:', error.message);
-                setLikerError("Could not load profiles. Please try again.");
+            } else {
+                console.log('[EventsScreen] No other users found who liked this listing.');
                 setLikerProfiles([]);
-            } finally {
-                setIsLoadingLikers(false);
             }
-        };
+        } catch (error: any) {
+            console.error('[EventsScreen] Error fetching liker profiles:', error);
+            const errorMsg = error.message || "Could not load profiles. Please try again.";
+            setLikerError(errorMsg);
+            setLikerProfiles([]);
+        } finally {
+            setIsLoadingLikers(false);
+        }
+    }, [user]); // Dependency: user
 
-        // Only fetch if the modal is visible and a listing ID is selected
+
+    // --- EFFECT to Fetch Likers when Modal Opens ---
+    useEffect(() => {
         if (isLikerModalVisible && selectedListingId) {
             fetchLikersForListing(selectedListingId);
         }
-    }, [isLikerModalVisible, selectedListingId, user]); // Dependencies for the effect
+    }, [isLikerModalVisible, selectedListingId, fetchLikersForListing]);
 
 
-    // --- HANDLERS for Swiping on User Profiles (Placeholder Logic) ---
-    const handleSwipeLeft = (profileId: string) => {
-        console.log(`Swiped LEFT on User ID: ${profileId} for Listing ID: ${selectedListingId}`);
-        // TODO: Implement Supabase call to record the "dismiss" action
-        // e.g., insert into a 'user_swipes' table: { swiper_id: user.id, swiped_id: profileId, liked: false, context_listing_id: selectedListingId }
-    };
+    // --- HANDLER for Reloading Likers (used by ProfileStoryView) ---
+    const handleReloadLikers = useCallback(() => {
+        if (selectedListingId) {
+             fetchLikersForListing(selectedListingId);
+        } else {
+             console.warn("[EventsScreen] Cannot reload likers, no listing selected.");
+        }
+    }, [selectedListingId, fetchLikersForListing]);
 
-    const handleSwipeRight = (profileId: string) => {
-        console.log(`Swiped RIGHT on User ID: ${profileId} for Listing ID: ${selectedListingId}`);
+
+    // --- HANDLERS for Interaction within ProfileStoryView ---
+    const handleLikeProfileInStory = useCallback((profileId: string) => {
+        console.log(`Liked User ID: ${profileId} within Story View for Listing ID: ${selectedListingId}`);
         // TODO: Implement Supabase call to record the "like" action
-        // e.g., insert into 'user_swipes': { swiper_id: user.id, swiped_id: profileId, liked: true, context_listing_id: selectedListingId }
-        // TODO: Implement check for a match (has profileId also swiped right on user.id in this context?)
-        // If match: Create a match record in a 'matches' table and notify users.
-        // Example Match Check (pseudo-code):
-        // const { data: potentialMatch } = await supabase.from('user_swipes').select().eq('swiper_id', profileId).eq('swiped_id', user.id).eq('liked', true).eq('context_listing_id', selectedListingId).maybeSingle();
-        // if (potentialMatch) { console.log("IT'S A MATCH!"); /* Create match record */ }
-    };
+        // TODO: Implement match check logic here
+    }, [selectedListingId, user]);
 
-    const handleSwipedAll = () => {
-        console.log("Swiped through all available profiles for this listing.");
-        // Optionally close the modal automatically or show a message
-        // handleCloseLikerModal();
-    };
+    const handleStoryFinished = useCallback(() => {
+        console.log("Finished viewing all profiles in Story View for this listing.");
+        // Optional: Could add logic here if needed when the end screen is first reached
+    }, []);
 
-    // --- Render item function uses LikedListingItem ---
+
+    // --- *** RESTORED: Render item function uses LikedListingItem *** ---
     const renderLikedItem = ({ item }: { item: BusinessListing }) => (
         <LikedListingItem
             listing={item}
             onUnlike={handleUnlike}
-            // --- PASS the onPress handler ---
-            onPress={handleItemPress}
+            onPress={handleItemPress} // Pass the handler to open the modal
         />
     );
 
-    // --- Loading/Empty States for the main list --- (Remain the same)
+    // --- Loading/Empty States for the main list ---
     if (isLoadingListings && (!likedListingsData || likedListingsData.length === 0)) {
-         return <SafeAreaView style={styles.centered}><ActivityIndicator size="large" color="#FF6347" /></SafeAreaView>;
+        return <SafeAreaView style={styles.centered}><ActivityIndicator size="large" color="#FF6347" /></SafeAreaView>;
     }
     if (!isLoadingListings && (!likedListingsData || likedListingsData.length === 0)) {
-         return <SafeAreaView style={styles.centered}><Text style={styles.emptyText}>You haven't liked any listings yet!</Text><Text style={styles.emptySubText}>Go to the Discover tab.</Text></SafeAreaView>;
+        return <SafeAreaView style={styles.centered}><Text style={styles.emptyText}>You haven't liked any listings yet!</Text><Text style={styles.emptySubText}>Go to the Discover tab.</Text></SafeAreaView>;
     }
 
     // --- MAIN LIST VIEW ---
@@ -173,140 +228,135 @@ const EventsScreen: React.FC = () => {
             {/* --- MODAL for Liker Profile Swiping --- */}
             <Modal
                 animationType="slide"
-                transparent={false} // Full screen modal
+                transparent={false}
                 visible={isLikerModalVisible}
-                onRequestClose={handleCloseLikerModal} // Android back button
+                onRequestClose={handleCloseLikerModal}
+                statusBarTranslucent={true}
             >
-                {/* Use SafeAreaView inside Modal for content */}
-                <SafeAreaView style={styles.modalContainer}>
-                     {/* Custom Header for Modal */}
-                     <View style={styles.modalHeader}>
-                         <Text style={styles.modalTitle}>People who liked this place</Text>
-                         <TouchableOpacity onPress={handleCloseLikerModal} style={styles.closeButton}>
-                             <Ionicons name="close-circle" size={30} color="#555" />
-                         </TouchableOpacity>
-                     </View>
+                {/* LinearGradient is the outermost view INSIDE Modal */}
+                <LinearGradient
+                    colors={gradientColors}
+                    style={styles.gradientBackground}
+                    start={{ x: 0, y: 0.5 }}
+                    end={{ x: 1, y: 0.5 }}
+                >
+                    {/* SafeAreaView is now INSIDE the gradient */}
+                    <SafeAreaView style={styles.modalContainer}>
+                        {/* Content View remains the same, inside SafeAreaView */}
+                        <View style={styles.modalContent}>
+                            {/* Loading State */}
+                            {isLoadingLikers && (
+                                <View style={styles.centeredWrapper}>
+                                    <ActivityIndicator size="large" color="#FFFFFF" />
+                                    <Text style={styles.loadingText}>Loading profiles...</Text>
+                                </View>
+                            )}
 
-                     {/* Content Area for Swiper */}
-                     <View style={styles.modalContent}>
-                        {isLoadingLikers && (
-                            <View style={styles.modalCentered}>
-                                <ActivityIndicator size="large" color="#FF6347" />
-                                <Text style={styles.loadingText}>Loading profiles...</Text>
-                            </View>
-                        )}
+                            {/* Error State */}
+                            {!isLoadingLikers && likerError && (
+                                <View style={styles.centeredWrapper}>
+                                    <Text style={styles.errorText}>{likerError}</Text>
+                                    {selectedListingId && (
+                                        <TouchableOpacity onPress={handleReloadLikers} style={styles.errorRetryButton}>
+                                            <Text style={styles.errorRetryButtonText}>Try Again</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    <TouchableOpacity onPress={handleCloseLikerModal} style={styles.errorCloseButton}>
+                                        <Text style={styles.errorCloseButtonText}>Close</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
 
-                        {!isLoadingLikers && likerError && (
-                             <View style={styles.modalCentered}>
-                                <Text style={styles.errorText}>{likerError}</Text>
-                                <TouchableOpacity onPress={handleCloseLikerModal} style={styles.errorCloseButton}>
-                                     <Text style={styles.errorCloseButtonText}>Close</Text>
-                                 </TouchableOpacity>
-                             </View>
-                        )}
+                            {/* Empty State */}
+                            {!isLoadingLikers && !likerError && likerProfiles.length === 0 && (
+                                 <View style={styles.centeredWrapper}>
+                                     <Text style={styles.emptyStateText}>No other users found yet!</Text>
+                                     <Text style={styles.emptyStateSubText}>Check back later or explore other places.</Text>
+                                     {selectedListingId && (
+                                         <TouchableOpacity onPress={handleReloadLikers} style={styles.errorRetryButton}>
+                                             <Text style={styles.errorRetryButtonText}>Check Again</Text>
+                                         </TouchableOpacity>
+                                     )}
+                                      <TouchableOpacity onPress={handleCloseLikerModal} style={styles.errorCloseButton}>
+                                         <Text style={styles.errorCloseButtonText}>Close</Text>
+                                     </TouchableOpacity>
+                                 </View>
+                            )}
 
-                        {!isLoadingLikers && !likerError && likerProfiles.length === 0 && (
-                             <View style={styles.modalCentered}>
-                                <Text style={styles.emptyStateText}>No other users found yet!</Text>
-                                <Text style={styles.emptyStateSubText}>Check back later or explore other places.</Text>
-                             </View>
-                        )}
-
-                        {!isLoadingLikers && !likerError && likerProfiles.length > 0 && (
-                            <ProfileCardStack
-                                profiles={likerProfiles}
-                                onSwipeLeft={handleSwipeLeft}
-                                onSwipeRight={handleSwipeRight}
-                                onSwipedAll={handleSwipedAll}
-                            />
-                        )}
-                     </View>
-                </SafeAreaView>
+                            {/* Profile Card Stack Rendering */}
+                            {!isLoadingLikers && !likerError && likerProfiles.length > 0 && (
+                                <ProfileCardStack
+                                    profiles={likerProfiles}
+                                    onLikeProfile={handleLikeProfileInStory}
+                                    onProfilesExhausted={handleStoryFinished}
+                                    onClose={handleCloseLikerModal}
+                                    onReloadProfiles={handleReloadLikers}
+                                />
+                            )}
+                        </View>
+                    </SafeAreaView>
+                </LinearGradient>
             </Modal>
         </SafeAreaView>
     );
 };
 
 
-// --- STYLES ---
+// --- STYLES --- (Styles remain unchanged from the previous correct version)
 const styles = StyleSheet.create({
-    // Existing Styles (Main List, Centered, Empty, List Container)
+    // Main screen styles
     container: { flex: 1, backgroundColor: '#f8f8f8', },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20, backgroundColor: '#f8f8f8', },
     emptyText: { fontSize: 18, fontWeight: '600', color: '#555', textAlign: 'center', marginBottom: 8, },
     emptySubText: { fontSize: 14, color: '#777', textAlign: 'center', },
     listContentContainer: { paddingVertical: 8, paddingHorizontal: 0, },
 
-    // --- MODAL Styles ---
-    modalContainer: {
+    // Modal styles
+    gradientBackground: { // For the LinearGradient wrapper
         flex: 1,
-        backgroundColor: '#f0f0f0', // Light background for the modal
     },
-     modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 15,
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#ddd',
-        backgroundColor: '#fff', // White header background
+    modalContainer: { // For the SafeAreaView inside the gradient
+        flex: 1,
+        backgroundColor: 'transparent', // MUST be transparent
     },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#333',
+    modalContent: { // For the View inside SafeAreaView
+        flex: 1,
+        backgroundColor: 'transparent', // MUST be transparent
     },
-    closeButton: {
-        padding: 5,
-    },
-    modalContent: {
-        flex: 1, // Take remaining space
-        // alignItems: 'center', // Swiper handles its own alignment
-        // justifyContent: 'center', // Swiper handles its own alignment
-    },
-    // Centered content specifically for Loading/Empty/Error states within Modal
-    modalCentered: {
+    centeredWrapper: { // For Loading/Error/Empty states
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
+        width: '100%',
+        backgroundColor: 'transparent',
     },
+    // Styles for text/buttons within centeredWrapper
     loadingText: {
-        marginTop: 10,
-        fontSize: 16,
-        color: '#555',
+        marginTop: 10, fontSize: 16, color: '#FFFFFF',
+        textShadowColor: 'rgba(0, 0, 0, 0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
     },
     emptyStateText: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#555',
-        textAlign: 'center',
-        marginBottom: 8,
+        fontSize: 18, fontWeight: '600', color: '#FFFFFF', textAlign: 'center', marginBottom: 8,
+        textShadowColor: 'rgba(0, 0, 0, 0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3,
     },
     emptyStateSubText: {
-        fontSize: 14,
-        color: '#777',
-        textAlign: 'center',
+        fontSize: 14, color: '#DDDDDD', textAlign: 'center', marginBottom: 20,
+        textShadowColor: 'rgba(0, 0, 0, 0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
     },
     errorText: {
-        fontSize: 16,
-        color: 'red',
-        textAlign: 'center',
-        marginBottom: 15,
+        fontSize: 16, color: '#FFD1D1', textAlign: 'center', marginBottom: 15, fontWeight: '500',
+        textShadowColor: 'rgba(0, 0, 0, 0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
     },
-     errorCloseButton: {
-        marginTop: 15,
-        backgroundColor: '#ccc',
-        paddingVertical: 8,
-        paddingHorizontal: 20,
-        borderRadius: 20,
+    errorRetryButton: {
+        marginTop: 20, backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingVertical: 10, paddingHorizontal: 25, borderRadius: 20, marginBottom: 10,
+        borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.4)',
     },
-    errorCloseButtonText: {
-        color: '#333',
-        fontSize: 14,
-        fontWeight: '500',
+    errorRetryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600', },
+    errorCloseButton: {
+        marginTop: 10, backgroundColor: 'rgba(255, 255, 255, 0.1)', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20,
     },
+    errorCloseButtonText: { color: '#CCCCCC', fontSize: 14, fontWeight: '500', },
 });
 
 export default EventsScreen;
