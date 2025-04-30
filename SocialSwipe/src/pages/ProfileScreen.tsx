@@ -5,7 +5,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Pressable,
-  ScrollView,
+  ScrollView, // Keep ScrollView for Business view flexibility
   Alert,
   SafeAreaView,
   FlatList,
@@ -87,7 +87,7 @@ const ProfileScreen: React.FC = () => {
       .eq('user_id', userId)
       .single();
 
-    if (profileError && profileError.code !== 'PGRST116') {
+    if (profileError && profileError.code !== 'PGRST116') { // PGRST116: row not found, which is okay
       console.error("[ProfileScreen] Error fetching manager profile on focus:", profileError);
       Toast.show({ type: 'error', text1: 'Error loading profile', text2: profileError.message });
       setManagerProfile(null);
@@ -102,8 +102,8 @@ const ProfileScreen: React.FC = () => {
     // *** NOTE: This logic remains, fetching listings only if no manager profile.
     // The UI rendering logic will determine what is ultimately displayed. ***
     if (!profileData) { // Only fetch listings if there's no individual profile
-         console.log("[ProfileScreen] Fetching business listings on focus (as no manager profile found)");
-        const { data: listingData, error: listingError } = await supabase
+        console.log("[ProfileScreen] Fetching business listings on focus (as no manager profile found)");
+       const { data: listingData, error: listingError } = await supabase
             .from('business_listings')
             .select('*')
             .eq('manager_user_id', userId);
@@ -134,7 +134,7 @@ const ProfileScreen: React.FC = () => {
 
       if (user?.id) {
           if (isActive) {
-             fetchData(user.id);
+              fetchData(user.id);
           }
       } else {
           // Reset state if user logs out while screen might be cached
@@ -217,13 +217,13 @@ const ProfileScreen: React.FC = () => {
                   <Ionicons name="log-in-outline" size={60} color="#aaa" />
                   <Text style={styles.infoText}>You are not logged in.</Text>
                   <Text style={styles.subInfoText}>Please log in or sign up to view your profile.</Text>
-                   {/* Optional: Add Login/Signup buttons here */}
-                   {/* <Pressable style={[styles.button, styles.buttonPrimaryChoice]} onPress={() => navigation.navigate('Login')}>
-                       <Text style={styles.buttonPrimaryChoiceText}>Log In</Text>
-                   </Pressable>
-                   <Pressable style={[styles.button, styles.buttonSecondaryChoice]} onPress={() => navigation.navigate('SignUp')}>
-                       <Text style={styles.buttonSecondaryChoiceText}>Sign Up</Text>
-                   </Pressable> */}
+                    {/* Optional: Add Login/Signup buttons here */}
+                    {/* <Pressable style={[styles.button, styles.buttonPrimaryChoice]} onPress={() => navigation.navigate('Login')}>
+                        <Text style={styles.buttonPrimaryChoiceText}>Log In</Text>
+                    </Pressable>
+                    <Pressable style={[styles.button, styles.buttonSecondaryChoice]} onPress={() => navigation.navigate('SignUp')}>
+                        <Text style={styles.buttonSecondaryChoiceText}>Sign Up</Text>
+                    </Pressable> */}
               </View>
           </SafeAreaView>
       );
@@ -300,23 +300,33 @@ const ProfileScreen: React.FC = () => {
 
   const profileCardInput = managerProfile ? createProfileCardData(managerProfile) : null;
 
+  // --- MODIFICATION: Choose Root Component based on profile type ---
+  // Use ScrollView ONLY if it's the business view (needs FlatList)
+  // Use a regular View for the Personal Profile to avoid inherent scrolling
+  const RootComponent = managerProfile ? View : ScrollView;
+  const rootComponentProps = managerProfile
+    ? { style: styles.container } // Use a style that allows content to flex/center if needed
+    : { // Props for ScrollView
+        style: styles.scrollView,
+        contentContainerStyle: styles.scrollContentContainer,
+      };
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContentContainer}
-      >
+      {/* --- MODIFICATION: Use conditional RootComponent --- */}
+      <RootComponent {...rootComponentProps}>
         {/* --- Header --- */}
         <View style={styles.header}>
-           {/* --- MODIFICATION START --- */}
-           {/* Left side placeholder area. The conditional 'Add Business' button is REMOVED. */}
-           {/* A placeholder is always rendered to maintain balance when the main profile view is shown. */}
-           <View style={styles.headerButtonContainerLeft}>
-              {/* This placeholder ensures the title stays centered, balancing the right button area. */}
-              {/* Adjust width if needed based on the actual size of the right-side button/content. */}
-              <View style={{ width: 50 }} />
-           </View>
-           {/* --- MODIFICATION END --- */}
+            {/* --- MODIFICATION START: Move Logout Button to Top Left --- */}
+            <View style={styles.headerButtonContainerLeft}>
+              {/* Logout Button is always shown when logged in and profile exists */}
+              {/* *** CHANGE: Use headerButtonBase instead of button to remove border *** */}
+              <Pressable style={[styles.headerButtonBase, styles.headerLogoutButton]} onPress={handleLogout} hitSlop={10}>
+                  <Ionicons name="log-out-outline" size={24} color="#6c757d" style={{ marginRight: 0 }}/> {/* Maybe remove text for space */}
+                  {/* <Text style={styles.headerLogoutButtonText}>Log Out</Text> */}
+              </Pressable>
+            </View>
+            {/* --- MODIFICATION END --- */}
 
           {/* Display Name */}
           <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">{displayName}</Text>
@@ -325,38 +335,39 @@ const ProfileScreen: React.FC = () => {
           <View style={styles.headerButtonContainer}>
             {/* Show Edit Personal Profile Button if managerProfile exists */}
             {managerProfile && (
-                <Pressable style={[styles.button, styles.headerButton]} onPress={handleEditManagerProfile} hitSlop={10}>
+                /* *** CHANGE: Use headerButtonBase instead of button to remove border *** */
+                <Pressable style={[styles.headerButtonBase, styles.headerEditButton]} onPress={handleEditManagerProfile} hitSlop={10}>
                     <Ionicons name="person-circle-outline" size={24} color={"#FF6347"} style={{ marginRight: 5 }}/>
+                    {/* *** CHANGE: Apply specific text style *** */}
                     <Text style={styles.buttonOutlineText}>Edit</Text>
                 </Pressable>
             )}
-             {/* If no manager profile, show a placeholder to balance the header */}
+              {/* If no manager profile (business view), show a placeholder to balance the header */}
             {!managerProfile && (
-                 <View style={{ width: 50 }} /> // Placeholder for balance
+                <View style={{ width: 50 }} /> // Placeholder for balance - adjust width if needed
             )}
           </View>
         </View>
 
         {/* --- Personal Profile Card Preview --- (Only if managerProfile exists) */}
-        {/* --- This section remains unchanged --- */}
         {profileCardInput && (
-            <View style={styles.profileCardSection}>
-                <Text style={styles.sectionTitle}>My Personal Profile Preview</Text>
+            // --- MODIFICATION: Wrap in a View that allows ProfileCard to take necessary space ---
+            // This view is now inside the main <View> (RootComponent), not ScrollView
+            <View style={styles.profileCardContainer}>
+                {/* <Text style={styles.sectionTitle}>My Personal Profile Preview</Text> */}
+                {/* Removed section title to save vertical space */}
                 <ProfileCard profile={profileCardInput} />
-                {/* Edit button could also go here, matching the header one */}
-                {/* <Pressable style={[styles.button, styles.buttonOutline, styles.editCardButton]} onPress={handleEditManagerProfile}>
-                     <Ionicons name="pencil-outline" size={18} color="#FF6347" style={{ marginRight: 8 }}/>
-                     <Text style={styles.buttonOutlineText}>Edit Personal Profile</Text>
-                 </Pressable> */}
+                {/* Edit button is now in the header, removing redundancy */}
             </View>
         )}
 
         {/* --- Business Listings Section --- (Only if NO managerProfile exists and listings ARE present) */}
         {/* --- This section remains unchanged, including the "Add Another Business" button --- */}
+        {/* --- This will only render when RootComponent is ScrollView --- */}
         {!managerProfile && businessListings.length > 0 && (
-             <View style={styles.section}>
-               <Text style={styles.sectionTitle}>My Business Listings</Text>
-               <FlatList
+            <View style={styles.section}> {/* This section style might need adjustment if used outside ScrollView */}
+                <Text style={styles.sectionTitle}>My Business Listings</Text>
+                <FlatList
                     data={businessListings}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
@@ -368,39 +379,42 @@ const ProfileScreen: React.FC = () => {
                         </View>
                     )}
                     style={styles.listingList}
-               />
-               <View style={styles.businessActionsContainer}>
+                />
+                <View style={styles.businessActionsContainer}>
                   <Pressable style={[styles.button, styles.manageButton]} onPress={handleManageListings}>
                       <Ionicons name="briefcase-outline" size={18} color="#fff" style={{ marginRight: 8 }}/>
                       <Text style={styles.manageButtonText}>Manage Listings</Text>
-                   </Pressable>
-                   {/* handleAddBusiness is correctly used here */}
-                   <Pressable style={[styles.button, styles.addBusinessButtonSection]} onPress={handleAddBusiness}>
-                       <Ionicons name="add-circle-outline" size={20} color="#007AFF" style={{ marginRight: 8 }}/>
-                       <Text style={styles.addBusinessButtonSectionText}>Add Another Business</Text>
-                   </Pressable>
+                    </Pressable>
+                    {/* handleAddBusiness is correctly used here */}
+                    <Pressable style={[styles.button, styles.addBusinessButtonSection]} onPress={handleAddBusiness}>
+                        <Ionicons name="add-circle-outline" size={20} color="#007AFF" style={{ marginRight: 8 }}/>
+                        <Text style={styles.addBusinessButtonSectionText}>Add Another Business</Text>
+                    </Pressable>
                 </View>
-             </View>
+            </View>
         )}
 
-        {/* Logout Button (Remains unchanged) */}
-        <View style={styles.logoutContainer}>
-          <Pressable style={[styles.button, styles.buttonGhost]} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color="#6c757d" style={{ marginRight: 8 }}/>
-            <Text style={styles.buttonGhostText}>Log Out</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
+        {/* --- MODIFICATION: Removed Logout Button from the bottom --- */}
+        {/* The logout button is now in the header */}
+
+      {/* --- MODIFICATION: Close conditional RootComponent --- */}
+      </RootComponent>
       <Toast /> {/* Ensure Toast is rendered */}
     </SafeAreaView>
   );
 };
 
-// --- Styles --- (Styles remain unchanged)
+// --- Styles --- (Adjusted and added styles)
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#f8f9fa" },
+  // Style for the main container when it's a View (Personal Profile)
+  container: {
+    flex: 1, // Takes full available space
+    // Removed paddingVertical from here, apply padding inside components if needed
+  },
+  // Style for the main container when it's a ScrollView (Business Profile)
   scrollView: { flex: 1 },
-  scrollContentContainer: { paddingVertical: 16, paddingBottom: 80 }, // Removed horizontal padding
+  scrollContentContainer: { paddingVertical: 16, paddingBottom: 80 }, // Keep padding for scroll view content
   centered: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20, backgroundColor: '#f0f0f0' },
   infoText: { fontSize: 20, fontWeight: '600', textAlign: 'center', marginBottom: 10, color: '#444' },
   subInfoText: { fontSize: 15, textAlign: 'center', marginBottom: 30, color: '#666', maxWidth: '90%' },
@@ -410,33 +424,78 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 24,
+    // marginBottom: 24, // Reduced margin for non-scrolling view
+    marginBottom: 10, // Adjusted margin
     width: '100%',
     paddingHorizontal: 16, // Add padding here
+    paddingTop: 10, // Add some top padding within safe area
     minHeight: 50, // Ensure header has some height
   },
-  headerButtonContainer: { flex: 1, alignItems: 'flex-end', justifyContent: 'center' },
-  headerButtonContainerLeft: { flex: 1, alignItems: 'flex-start', justifyContent: 'center', },
-  headerButton: { paddingVertical: 6, paddingHorizontal: 0, flexDirection: 'row', alignItems: 'center', borderWidth: 0, backgroundColor: 'transparent' }, // Removed horizontal padding
-  // Style for the removed button - kept here in case needed elsewhere, or can be removed if truly unused.
-  headerAddButton: { paddingVertical: 6, paddingHorizontal: 0, flexDirection: 'row', alignItems: 'center', borderWidth: 0, backgroundColor: 'transparent' },
-  addBusinessText: { color: '#007AFF', fontWeight: 'bold', fontSize: 14 },
+  headerButtonContainer: { flex: 1, alignItems: 'flex-end', justifyContent: 'center' }, // Right side
+  headerButtonContainerLeft: { flex: 1, alignItems: 'flex-start', justifyContent: 'center', }, // Left side
+  // Shared button style (transparent background, no border unless specified)
+  headerButtonBase: {
+    paddingVertical: 6,
+    paddingHorizontal: 0, // Remove horizontal padding for icon-only/compact buttons
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 0, // *** Ensures no border ***
+    backgroundColor: 'transparent',
+  },
+  // Specific style for Edit button in header
+  headerEditButton: {
+    // Inherits from headerButtonBase
+    // Add specific styles if needed, e.g., padding adjustments for icon+text
+    paddingHorizontal: 5, // Add slight padding back for the "Edit" text case
+  },
+  // Specific style for Logout button in header
+  headerLogoutButton: {
+    // Inherits from headerButtonBase
+    paddingLeft: 0, // Ensure icon is close to the edge
+  },
+  headerLogoutButtonText: { // Style for logout text if you keep it
+     color: "#6c757d",
+     fontWeight: "500",
+     fontSize: 14,
+     marginLeft: 5, // Space between icon and text
+  },
+  // Style for the removed Add Business header button - kept for reference
+  // headerAddButton: { paddingVertical: 6, paddingHorizontal: 0, flexDirection: 'row', alignItems: 'center', borderWidth: 0, backgroundColor: 'transparent' },
+  // addBusinessText: { color: '#007AFF', fontWeight: 'bold', fontSize: 14 },
   headerTitle: { fontSize: 22, fontWeight: "bold", color: "#333", textAlign: 'center', flex: 2.5, marginHorizontal: 5 }, // Increased flex slightly
+  // Container for the ProfileCard when in the non-scrolling view
+  profileCardContainer: {
+      flex: 1, // Allows ProfileCard to expand
+      alignItems: 'center', // Center the card horizontally
+      justifyContent: 'flex-start', // Align card towards the top
+      // *** CHANGE: Increased padding to make card appear smaller ***
+      paddingHorizontal: 24, // Was 16 - Padding for the card container
+      width: '100%',
+      // Remove marginBottom if not needed, rely on flex spacing
+  },
+  // Style for the ProfileCard section title (now optional/removed)
+  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 15, /* textAlign: 'center', */ color: '#333' }, // Adjusted alignment
+
+  // Styles for Business View (within ScrollView)
   section: { marginHorizontal: 16, marginBottom: 24, padding: 16, backgroundColor: '#fff', borderRadius: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 15, textAlign: 'center', color: '#333' },
   listingList: { marginTop: 10, marginBottom: 15 },
   listingItem: { paddingVertical: 12, paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: '#fafafa', borderRadius: 6, marginBottom: 8 },
   listingName: { fontSize: 16, fontWeight: '500', color: '#444', marginBottom: 2 },
   listingCategory: { fontSize: 14, color: '#777' },
   listingDetail: { fontSize: 13, color: '#888', marginTop: 2 }, // Style for address etc.
-  logoutContainer: { marginTop: 24, alignItems: "center", paddingHorizontal: 16 },
-  logoutContainerStandalone: { marginTop: 40, width: '80%', alignItems: "stretch" },
+
+  // --- MODIFIED: Removed standalone logout container style ---
+  // logoutContainer: { marginTop: 24, alignItems: "center", paddingHorizontal: 16 },
+  logoutContainerStandalone: { marginTop: 40, width: '80%', alignItems: "stretch" }, // Keep for the 'No Profile' screen
+
+  // General Button Styles (mostly unchanged, but header buttons no longer use `button` directly)
   button: { paddingVertical: 14, paddingHorizontal: 20, borderRadius: 25, alignItems: "center", justifyContent: "center", borderWidth: 1, marginVertical: 8, flexDirection: 'row' },
   buttonPrimaryChoice: { backgroundColor: '#FF6347', borderColor: '#FF6347' },
   buttonPrimaryChoiceText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
   buttonSecondaryChoice: { backgroundColor: '#4682B4', borderColor: '#4682B4' },
   buttonSecondaryChoiceText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
   buttonOutline: { borderColor: "#FF6347", backgroundColor: "transparent" },
+  // *** NOTE: This text style is now applied directly in the Edit button ***
   buttonOutlineText: { color: "#FF6347", fontWeight: "bold", fontSize: 14 },
   buttonGhost: { borderColor: "transparent", backgroundColor: "transparent" },
   buttonGhostText: { color: "#6c757d", fontWeight: "500", fontSize: 16 },
@@ -445,8 +504,11 @@ const styles = StyleSheet.create({
   manageButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   addBusinessButtonSection: { backgroundColor: 'transparent', borderColor: '#007AFF', borderWidth: 1, width: '100%', marginTop: 10 },
   addBusinessButtonSectionText: { color: '#007AFF', fontWeight: 'bold', fontSize: 16 },
-  profileCardSection: { marginBottom: 24, alignItems: 'center', paddingHorizontal: 16 }, // Added padding
-  editCardButton: { marginTop: 15, alignSelf: 'center', width: '100%', maxWidth: 350 } // Adjusted edit button below card
+
+  // --- MODIFIED: Renamed this style for clarity ---
+  // profileCardSection: { marginBottom: 24, alignItems: 'center', paddingHorizontal: 16 }, // Old name
+  // Style for edit button below card (now removed, button is in header)
+  // editCardButton: { marginTop: 15, alignSelf: 'center', width: '100%', maxWidth: 350 }
 });
 
 export default ProfileScreen;

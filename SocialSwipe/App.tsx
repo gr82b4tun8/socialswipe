@@ -23,6 +23,7 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { DiscoveryProvider } from './src/contexts/DiscoveryContext';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur'; // <--- ***** ADD THIS IMPORT *****
 
 // --- Import Screens ---
 import AuthPage from './src/pages/AuthPage';
@@ -95,7 +96,11 @@ function AppHeader({ navigation, route, options }: NativeStackHeaderProps | Bott
     const headerGradientConfig = theme?.gradients?.primaryHeader;
     const useGradientHeader = !theme?.isDark && !!headerGradientConfig;
 
-    if (!theme) return null;
+    // **** NEW: Decide if you want blur on the header ****
+    const applyHeaderBlur = true; // Set to true to enable blur, false to disable
+    const blurTint = theme?.isDark ? 'dark' : 'light'; // Match blur tint to theme
+
+    if (!theme) return null; // Existing null check
 
     const HeaderContainerComponent = useGradientHeader ? LinearGradient : View;
     const headerProps = useGradientHeader ? headerGradientConfig : {};
@@ -105,14 +110,26 @@ function AppHeader({ navigation, route, options }: NativeStackHeaderProps | Bott
         <HeaderContainerComponent
             {...headerProps}
             style={[
-                styles.headerContainer,
-                {
+                styles.headerContainer, // Original style
+                { // Original inline styles + overflow
                     backgroundColor: !useGradientHeader ? theme.colors.headerBackground : undefined,
                     paddingTop: insets.top,
                     height: (theme.header?.height || 60) + insets.top,
+                    overflow: 'hidden', // **** ADD overflow: 'hidden' ****
                 }
             ]}
         >
+            {/* **** START: Add BlurView Layer **** */}
+            {applyHeaderBlur && (
+                <BlurView
+                    intensity={80} // Adjust blur intensity (0-100)
+                    tint={blurTint}
+                    style={StyleSheet.absoluteFill} // Make blur cover the entire header area
+                />
+            )}
+            {/* **** END: Add BlurView Layer **** */}
+
+            {/* Original Header Content - Renders on top of BlurView/Gradient */}
             <View style={styles.headerContent}>
                 {canGoBack && (
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -126,7 +143,7 @@ function AppHeader({ navigation, route, options }: NativeStackHeaderProps | Bott
                 <Text
                     style={[
                         styles.headerTitle,
-                        {
+                        { // Original inline styles for title
                             color: theme.colors.headerText,
                             fontSize: theme.fonts?.sizes?.xxLarge || 26,
                             fontWeight: 'bold',
@@ -136,7 +153,7 @@ function AppHeader({ navigation, route, options }: NativeStackHeaderProps | Bott
                 >
                     Sphere
                 </Text>
-                 <View style={styles.rightSpacer} />
+                 <View style={styles.rightSpacer} />{/* Original Spacer */}
             </View>
         </HeaderContainerComponent>
     );
@@ -149,11 +166,11 @@ function AppHeader({ navigation, route, options }: NativeStackHeaderProps | Bott
 // AuthStack
 function AuthStack() {
      return (
-        <AuthStackNav.Navigator screenOptions={{ headerShown: false }}>
-            <AuthStackNav.Screen name="Login" component={AuthPage} />
-            <AuthStackNav.Screen name="SignUp" component={CreateAccount} />
-        </AuthStackNav.Navigator>
-    );
+         <AuthStackNav.Navigator screenOptions={{ headerShown: false }}>
+             <AuthStackNav.Screen name="Login" component={AuthPage} />
+             <AuthStackNav.Screen name="SignUp" component={CreateAccount} />
+         </AuthStackNav.Navigator>
+     );
 }
 
 // OnboardingStack
@@ -181,54 +198,77 @@ function MainTabs() {
 
     if (!theme) {
          return (
-            <View style={styles.screen}>
-                <ActivityIndicator />
-            </View>
-        );
+             <View style={styles.screen}>
+                 <ActivityIndicator />
+             </View>
+         );
     }
 
     const tabBarGradientConfig = theme.gradients?.tabBarBackground;
     const useGradientTabBar = !theme.isDark && !!tabBarGradientConfig;
 
+    // **** NEW: Decide if you want blur on the tab bar ****
+    const applyTabBarBlur = true; // Set to true to enable blur, false to disable
+    const blurTint = theme.isDark ? 'dark' : 'light'; // Match blur tint to theme
+
     return (
         <MainTabNav.Navigator
-            sceneContainerStyle={{ backgroundColor: theme.colors.background }}
-            screenOptions={({ route }) => ({
-                headerShown: false,
-                tabBarActiveTintColor: theme.colors.primary,
-                tabBarInactiveTintColor: theme.colors.textSecondary,
-                tabBarStyle: {
-                    borderTopColor: theme.colors.border,
-                    borderTopWidth: 0, // Explicitly set the border width to 0
-                },
-                tabBarIcon: ({ focused, color, size }) => {
-                    let iconName: keyof typeof Ionicons.glyphMap = 'alert-circle-outline';
-                    if (route.name === 'DiscoverTab') iconName = focused ? 'search' : 'search-outline';
-                    else if (route.name === 'EventsTab') iconName = focused ? 'heart' : 'heart-outline';
-                    else if (route.name === 'ConversationsTab') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
-                    else if (route.name === 'ProfileTab') iconName = focused ? 'person' : 'person-outline';
-                    else if (route.name === 'NotificationsTab') iconName = focused ? 'notifications' : 'notifications-outline';
-                    return <Ionicons name={iconName} size={size} color={color} />;
-                },
-                tabBarBackground: () => {
-                    if (useGradientTabBar && tabBarGradientConfig) {
-                        return (
-                            <LinearGradient
-                                {...tabBarGradientConfig}
-                                style={StyleSheet.absoluteFill}
-                            />
-                        );
-                    } else {
-                        return (
-                            <View style={{
-                                flex: 1,
-                                backgroundColor: theme.colors.card
-                            }} />
-                        );
-                    }
-                },
+            sceneContainerStyle={{ backgroundColor: theme.colors.background }} // Original
+            screenOptions={({ route }) => ({ // Original
+                 headerShown: false, // Original
+                 tabBarActiveTintColor: theme.colors.primary, // Original
+                 tabBarInactiveTintColor: theme.colors.textSecondary, // Original
+                 tabBarStyle: { // Original style object
+                     borderTopColor: theme.colors.border, // Original
+                     borderTopWidth: 0, // Original
+                     // **** ADD backgroundColor: 'transparent' ****
+                     backgroundColor: 'transparent', // Needed for tabBarBackground to show through
+                 },
+                 tabBarIcon: ({ focused, color, size }) => { // Original Icon logic
+                     let iconName: keyof typeof Ionicons.glyphMap = 'alert-circle-outline';
+                     if (route.name === 'DiscoverTab') iconName = focused ? 'search' : 'search-outline';
+                     else if (route.name === 'EventsTab') iconName = focused ? 'heart' : 'heart-outline';
+                     else if (route.name === 'ConversationsTab') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+                     else if (route.name === 'ProfileTab') iconName = focused ? 'person' : 'person-outline';
+                     else if (route.name === 'NotificationsTab') iconName = focused ? 'notifications' : 'notifications-outline';
+                     return <Ionicons name={iconName} size={size} color={color} />;
+                 },
+                 // --- MODIFIED tabBarBackground ---
+                 tabBarBackground: () => { // Original prop function
+                     // **** START: Modifications for BlurView ****
+                     // Wrap original content in a View to manage layers
+                     return (
+                         <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
+                             {/* Layer 1: Original Background (Gradient or Solid Color) */}
+                             {useGradientTabBar && tabBarGradientConfig ? (
+                                 <LinearGradient // Original Gradient Logic
+                                     {...tabBarGradientConfig}
+                                     style={StyleSheet.absoluteFill}
+                                 />
+                             ) : (
+                                 // Original Solid Color Logic
+                                 <View style={{
+                                     flex: 1,
+                                     backgroundColor: theme.colors.card
+                                 }} />
+                             )}
+
+                             {/* Layer 2: BlurView on top (Conditional) */}
+                             {applyTabBarBlur && (
+                                 <BlurView
+                                     intensity={90} // Adjust intensity as needed for tab bar
+                                     tint={blurTint}
+                                     style={StyleSheet.absoluteFill} // Covers the gradient/solid background
+                                 />
+                             )}
+                         </View>
+                     );
+                     // **** END: Modifications for BlurView ****
+                 },
+                 // --- END MODIFIED tabBarBackground ---
             })}
         >
+            {/* Original Screens */}
             <MainTabNav.Screen name="DiscoverTab" component={DiscoverScreen} options={{ title: 'Discover' }} />
             <MainTabNav.Screen name="EventsTab" component={EventsScreen} options={{ title: 'Liked Profiles' }} />
             <MainTabNav.Screen name="ConversationsTab" component={ConversationsScreen} options={{ title: 'Messages' }} />
@@ -245,18 +285,19 @@ function RootStack() {
 
     if (!theme) {
          return (
-            <View style={styles.screen}>
-                <ActivityIndicator />
-            </View>
-        );
+             <View style={styles.screen}>
+                 <ActivityIndicator />
+             </View>
+         );
     }
 
     return (
         <RootStackNav.Navigator
-            screenOptions={{
-                header: (props) => <AppHeader {...props} />,
+            screenOptions={{ // Original screenOptions
+                header: (props) => <AppHeader {...props} />, // Original custom header
             }}
         >
+            {/* Original Screens */}
             <RootStackNav.Screen name="Main" component={MainTabs}/>
             <RootStackNav.Screen name="EditProfile" component={EditProfileScreen}/>
             <RootStackNav.Screen name="CreateProfile" component={CreateProfile}/>
@@ -269,7 +310,7 @@ function RootStack() {
 
 
 // --- AppContent ---
-function AppContent() {
+function AppContent() { // Original Component
     const { session, loadingAuth } = useAuth();
     const { theme } = useTheme();
     if (loadingAuth || !theme) {
@@ -281,11 +322,11 @@ function AppContent() {
         );
     }
     if (session && session.user) {
-        // Logic to determine onboarding completion should be here
-        // For now, assume if user exists, main app is shown
-        // Replace with your actual onboarding check logic if needed
-        // Example: const isOnboardingComplete = session.user.profileComplete;
-        // if (!isOnboardingComplete) { return <OnboardingStack />; }
+        // Logic to determine onboarding completion should be here (Original Comment)
+        // For now, assume if user exists, main app is shown (Original Comment)
+        // Replace with your actual onboarding check logic if needed (Original Comment)
+        // Example: const isOnboardingComplete = session.user.profileComplete; (Original Comment)
+        // if (!isOnboardingComplete) { return <OnboardingStack />; } (Original Comment)
         return <RootStack />;
     } else {
         return <AuthStack />;
@@ -295,7 +336,7 @@ function AppContent() {
 
 
 // --- Main App Component ---
-export default function App() {
+export default function App() { // Original Component
     return (
         <ThemeProvider>
             <AppWithTheme />
@@ -304,7 +345,7 @@ export default function App() {
 }
 
 // --- Helper component to access theme for Root View and Navigation ---
-function AppWithTheme() {
+function AppWithTheme() { // Original Component
      const { theme } = useTheme();
     if (!theme) { return <View style={styles.screen}><ActivityIndicator size="large" /></View>; }
     const navigationTheme = React.useMemo(() => {
@@ -314,7 +355,7 @@ function AppWithTheme() {
         };
     }, [theme]);
     return (
-        // CORRECT: GestureHandlerRootView wraps the main content
+        // CORRECT: GestureHandlerRootView wraps the main content (Original Comment)
         <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.colors.background }}>
             <SafeAreaProvider>
                 <AuthProvider>
@@ -334,13 +375,22 @@ function AppWithTheme() {
 
 // --- Styles ---
 const styles = StyleSheet.create({
-    screen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
-    headerContainer: { justifyContent: 'center', },
-    headerContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, flex: 1, backgroundColor: 'transparent', },
-    backButton: { padding: 5, marginRight: 0, },
-    headerTitle: { flex: 1, textAlign: 'left', },
-    rightSpacer: { width: (45 + 5*2), } // Adjusted size based on potential icon size + padding
+    screen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }, // Original
+    headerContainer: { justifyContent: 'center', }, // Original
+    headerContent: { // Original style object
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 10,
+        flex: 1,
+        backgroundColor: 'transparent',
+        // **** ADD position and zIndex to help ensure it's on top ****
+        position: 'relative',
+        zIndex: 1,
+    },
+    backButton: { padding: 5, marginRight: 0, }, // Original
+    headerTitle: { flex: 1, textAlign: 'left', }, // Original
+    rightSpacer: { width: (45 + 5*2), } // Original (Adjusted size based on potential icon size + padding)
 });
 
 // Export RootStackParamList for use in other components
-export type { RootStackParamList };
+export type { RootStackParamList }; // Original export
