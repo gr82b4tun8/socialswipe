@@ -368,7 +368,7 @@ const CreateProfile: React.FC = () => {
                    <View style={styles.fieldGroup}>
                          <Text style={styles.label}>Date of Birth*</Text>
                          <Controller control={control} name="dob" render={({ field: { onChange, onBlur, value } }) => (
-                             <TextInput style={[styles.input, errors.dob && styles.inputError]} placeholder="MM/DD/YYYY" onBlur={onBlur} onChangeText={onChange} value={value as string} keyboardType="numeric" maxLength={10} accessibilityLabel="Date of Birth Input MM/DD/YYYY" />
+                             <TextInput style={[styles.input, errors.dob && styles.inputError]} placeholder="MM/DD/YYYY" onBlur={onBlur} onChangeText={onChange} value={value as string} maxLength={10} accessibilityLabel="Date of Birth Input MM/DD/YYYY" />
                          )} />
                          {errors.dob && <Text style={styles.errorText}>{errors.dob.message}</Text>}
                    </View>
