@@ -372,10 +372,10 @@ const ProfileScreen: React.FC = () => {
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
                         <View style={styles.listingItem}>
-                          <Text style={styles.listingName}>{item.business_name}</Text>
-                          <Text style={styles.listingCategory}>{item.category}</Text>
-                        {/* Add address or other details if desired */}
-                        {/* <Text style={styles.listingDetail}>{`${item.address_city || ''}${item.address_state ? `, ${item.address_state}` : ''}`}</Text> */}
+                            <Text style={styles.listingName}>{item.business_name}</Text>
+                            <Text style={styles.listingCategory}>{item.category}</Text>
+                          {/* Add address or other details if desired */}
+                          {/* <Text style={styles.listingDetail}>{`${item.address_city || ''}${item.address_state ? `, ${item.address_state}` : ''}`}</Text> */}
                         </View>
                     )}
                     style={styles.listingList}
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
     // marginBottom: 24, // Reduced margin for non-scrolling view
     marginBottom: 10, // Adjusted margin
     width: '100%',
-    paddingHorizontal: 16, // Add padding here
+    paddingHorizontal: 15, // Add padding here
     paddingTop: 10, // Add some top padding within safe area
     minHeight: 50, // Ensure header has some height
   },
@@ -463,16 +463,21 @@ const styles = StyleSheet.create({
   // headerAddButton: { paddingVertical: 6, paddingHorizontal: 0, flexDirection: 'row', alignItems: 'center', borderWidth: 0, backgroundColor: 'transparent' },
   // addBusinessText: { color: '#007AFF', fontWeight: 'bold', fontSize: 14 },
   headerTitle: { fontSize: 22, fontWeight: "bold", color: "#333", textAlign: 'center', flex: 2.5, marginHorizontal: 5 }, // Increased flex slightly
+
+  // --- START: UPDATED profileCardContainer style block ---
   // Container for the ProfileCard when in the non-scrolling view
   profileCardContainer: {
-      flex: 1, // Allows ProfileCard to expand
-      alignItems: 'center', // Center the card horizontally
-      justifyContent: 'flex-start', // Align card towards the top
-      // *** CHANGE: Increased padding to make card appear smaller ***
-      paddingHorizontal: 24, // Was 16 - Padding for the card container
-      width: '100%',
-      // Remove marginBottom if not needed, rely on flex spacing
+    // flex: 1, // Ensure this is removed or commented out
+    alignItems: 'center',
+    justifyContent: 'flex-start', // Or 'center' if you want it centered vertically after scaling
+    paddingHorizontal: 15, // Horizontal padding still applies relative to the original container size
+    width: '100%',
+    // *** ADD THIS TRANSFORM ***
+    transform: [{ scale: 0.82 }], // Scale down to 90% (Adjust 0.9 to 0.95, 0.88 etc. as needed)
+    marginTop: -82 ,
   },
+  // --- END: UPDATED profileCardContainer style block ---
+
   // Style for the ProfileCard section title (now optional/removed)
   sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 15, /* textAlign: 'center', */ color: '#333' }, // Adjusted alignment
 
