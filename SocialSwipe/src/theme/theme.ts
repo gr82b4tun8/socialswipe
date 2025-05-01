@@ -83,7 +83,7 @@ export const lightTheme: AppTheme = {
   colors: {
     primary: '#fe5e58',
     secondary: '#549be3',
-    background: '#5a4fcf',
+    background: '#192f6a',
     card: '#FFFFFF',
     text: '#1F2937',
     textSecondary: '#6B7280',
@@ -100,9 +100,9 @@ export const lightTheme: AppTheme = {
   spacing: baseSpacing, // Assigns the fully defined baseSpacing object
   borderRadius: baseBorderRadius, // Assigns the fully defined baseBorderRadius object
   gradients: {
-      primaryHeader: { colors: ['#fe5e58', '#5a4fcf'], start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
+      primaryHeader: { colors: ['#fe5e58', '#192f6a'], start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
       screenBackground: { colors: ['#E0F2FE', '#FFFFFF'], start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } },
-      tabBarBackground: { colors: ['#fe5e58', '#5a4fcf'], start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
+      tabBarBackground: { colors: ['#fe5e58', '#192f6a'], start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
   },
 };
 

@@ -1,5 +1,5 @@
 // src/components/ProfileStoryView.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     StyleSheet,
@@ -7,13 +7,23 @@ import {
     Text,
     ActivityIndicator,
     Dimensions,
-    // Import Alert for basic feedback (optional)
+    Platform,
     // Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { TapGestureHandler, State } from 'react-native-gesture-handler';
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withTiming,
+    withSequence,
+    withDelay,
+    runOnJS,
+} from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient'; // *** 1. Import LinearGradient ***
+
 import ProfileCard, { Profile } from './ProfileCard';
-// *** 1. Import your Supabase client ***
-import { supabase } from '../lib/supabaseClient'; // Adjust path as needed
+import { supabase } from '../lib/supabaseClient';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -21,7 +31,6 @@ interface ProfileStoryViewProps {
     profiles: Profile[];
     initialProfileId?: string;
     onClose: () => void;
-    // Keep onLikeProfile prop if parent needs notification
     onLikeProfile?: (profileId: string, success: boolean) => void;
     onProfilesExhausted?: () => void;
     onReloadProfiles?: () => void;
@@ -31,16 +40,23 @@ const ProfileStoryView: React.FC<ProfileStoryViewProps> = ({
     profiles = [],
     initialProfileId,
     onClose,
-    onLikeProfile, // Note: Prop might become optional or removed if parent doesn't need it
+    onLikeProfile,
     onProfilesExhausted,
     onReloadProfiles,
 }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
-    const [isLiking, setIsLiking] = useState(false); // Optional: state to prevent double-liking while processing
+    const [isLiking, setIsLiking] = useState(false);
 
-    // --- useEffect and Navigation Handlers (handleNextProfile, handlePreviousProfile, handleReload) remain unchanged ---
+    const likeAnimationScale = useSharedValue(0);
+    const likeAnimationOpacity = useSharedValue(0);
+    const doubleTapRef = useRef(null);
+
+    // --- useEffect (unchanged from animation version) ---
     useEffect(() => {
+        likeAnimationScale.value = 0;
+        likeAnimationOpacity.value = 0;
+
         if (profiles.length > 0) {
             let startIndex = 0;
             if (initialProfileId) {
@@ -55,108 +71,99 @@ const ProfileStoryView: React.FC<ProfileStoryViewProps> = ({
             setCurrentIndex(0);
             setIsLoading(false);
         }
-    }, [profiles, initialProfileId]);
+    }, [profiles, initialProfileId, likeAnimationScale, likeAnimationOpacity]);
 
+    // --- Navigation Handlers (unchanged from animation version) ---
     const handleNextProfile = useCallback(() => {
-        // ... (no changes needed)
         if (currentIndex < profiles.length) {
             const nextIndex = currentIndex + 1;
             setCurrentIndex(nextIndex);
+            likeAnimationScale.value = 0;
+            likeAnimationOpacity.value = 0;
             if (nextIndex === profiles.length && onProfilesExhausted) {
                 onProfilesExhausted();
             }
         }
-    }, [currentIndex, profiles.length, onProfilesExhausted]);
-
+    }, [currentIndex, profiles.length, onProfilesExhausted, likeAnimationScale, likeAnimationOpacity]);
 
     const handlePreviousProfile = useCallback(() => {
-        // ... (no changes needed)
+        let targetIndex = currentIndex;
         if (currentIndex === profiles.length) {
-             setCurrentIndex(profiles.length - 1);
-         } else if (currentIndex > 0) {
-             setCurrentIndex(prevIndex => prevIndex - 1);
-         }
-    }, [currentIndex, profiles.length]);
+            targetIndex = profiles.length - 1;
+        } else if (currentIndex > 0) {
+            targetIndex = currentIndex - 1;
+        }
+        if (targetIndex !== currentIndex) {
+            setCurrentIndex(targetIndex);
+            likeAnimationScale.value = 0;
+            likeAnimationOpacity.value = 0;
+        }
+    }, [currentIndex, profiles.length, likeAnimationScale, likeAnimationOpacity]);
 
-
-    // *** 2. Modify handleLike ***
-    const handleLike = useCallback(async (likedProfileId: string) => {
-        if (isLiking) return; // Prevent multiple simultaneous like attempts
-
+    // --- Like Logic (unchanged from animation version) ---
+    const performLikeAction = useCallback(async (likedProfileId: string) => {
+        if (isLiking) return;
         setIsLiking(true);
         console.log(`Attempting to like profile: ${likedProfileId}`);
-
         try {
-            // Get the current logged-in user
             const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-            if (authError) {
-                throw new Error(`Authentication error: ${authError.message}`);
+            if (authError || !user) {
+                throw new Error(authError?.message || 'No authenticated user found.');
             }
-            if (!user) {
-                throw new Error('No authenticated user found. Please log in.');
-            }
-
             const likerUserId = user.id;
-
-            // Prepare the data for insertion
-            const likeData = {
-                liker_user_id: likerUserId,
-                liked_user_id: likedProfileId, // The ID of the profile being viewed/liked
-            };
-
+            const likeData = { liker_user_id: likerUserId, liked_user_id: likedProfileId };
             console.log('Inserting like:', likeData);
-
-            // Insert the like record into the Supabase table
-            const { error: insertError } = await supabase
-                .from('likes') // Your table name
-                .insert([likeData]); // Pass data as an array
-
+            const { error: insertError } = await supabase.from('likes').insert([likeData]);
             if (insertError) {
-                // Handle potential errors (e.g., unique constraint violation if already liked)
-                if (insertError.code === '23505') { // Postgres unique violation code
-                    console.warn(`Like already exists for user ${likerUserId} on profile ${likedProfileId}`);
-                    // Optionally provide feedback that it's already liked
-                    // Alert.alert("Already Liked", "You've already liked this profile.");
+                if (insertError.code === '23505') {
+                    console.warn(`Like already exists for profile ${likedProfileId}`);
+                    if (onLikeProfile) runOnJS(onLikeProfile)(likedProfileId, false);
                 } else {
-                    // Throw other errors
                     throw new Error(`Failed to insert like: ${insertError.message} (Code: ${insertError.code})`);
                 }
-                // Notify parent (optional) - indicate failure or already liked?
-                 if (onLikeProfile) {
-                    onLikeProfile(likedProfileId, false); // Indicate failure/no change
-                 }
             } else {
-                console.log(`Successfully liked profile ${likedProfileId} by user ${likerUserId}`);
-                // Like was successful!
-                // Optionally provide feedback
-                // Alert.alert("Liked!", "You liked this profile.");
-
-                // Notify parent component of success (if prop exists)
-                 if (onLikeProfile) {
-                    onLikeProfile(likedProfileId, true); // Indicate success
-                 }
-
-                // Optional: Automatically move to the next profile after a successful like
-                // handleNextProfile();
+                console.log(`Successfully liked profile ${likedProfileId}`);
+                if (onLikeProfile) runOnJS(onLikeProfile)(likedProfileId, true);
             }
-
         } catch (error) {
-            console.error("Error in handleLike:", error);
-            // Alert.alert("Error", error instanceof Error ? error.message : "Could not like profile.");
-            // Notify parent (optional) - indicate failure
-             if (onLikeProfile) {
-                 onLikeProfile(likedProfileId, false); // Indicate failure
-             }
+            console.error("Error in performLikeAction:", error);
+            if (onLikeProfile) runOnJS(onLikeProfile)(likedProfileId, false);
         } finally {
-            setIsLiking(false); // Re-enable liking
+             runOnJS(setIsLiking)(false);
         }
-    }, [isLiking, onLikeProfile, handleNextProfile]); // Add handleNextProfile if used inside
+    }, [isLiking, onLikeProfile]);
 
+    // --- Double Tap Handler (unchanged from animation version) ---
+    const handleDoubleTap = useCallback(() => {
+        const profileToLike = profiles[currentIndex];
+        if (!profileToLike || isLiking) {
+             console.log("Double tap ignored: no profile or already liking.");
+            return;
+        }
+        console.log("Double tap detected!");
+        likeAnimationScale.value = withSequence(
+            withTiming(1.4, { duration: 200 }),
+            withDelay(300, withTiming(0, { duration: 300 }))
+        );
+        likeAnimationOpacity.value = withSequence(
+            withTiming(1, { duration: 150 }),
+            withDelay(350, withTiming(0, { duration: 350 }))
+        );
+        runOnJS(performLikeAction)(profileToLike.id);
+    }, [currentIndex, profiles, isLiking, performLikeAction, likeAnimationScale, likeAnimationOpacity]);
+
+    // --- Animated Style (unchanged from animation version) ---
+    const animatedHeartStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ scale: likeAnimationScale.value }],
+            opacity: likeAnimationOpacity.value,
+        };
+    });
+
+    // --- Reload Handler (unchanged from animation version) ---
     const handleReload = useCallback(() => {
-        // ... (no changes needed)
         if (onReloadProfiles) {
-            setIsLoading(true); // Show loading indicator while parent reloads
+            setIsLoading(true);
             onReloadProfiles();
         } else {
             setCurrentIndex(0);
@@ -165,67 +172,60 @@ const ProfileStoryView: React.FC<ProfileStoryViewProps> = ({
 
 
     // --- Render Logic ---
-    // ... (rest of the component remains the same, ensure ProfileCard calls handleLike)
 
-    // Example of how ProfileCard might be used inside the render logic:
-    // (Make sure your actual ProfileCard component accepts and calls `onLike`)
-    // ... inside the return statement where the card is rendered:
-                    // ...
-                    // ) : (
-                    //     // Display current profile card
-                    //     profiles[currentIndex] && (
-                    //         <ProfileCard
-                    //             key={profiles[currentIndex].id}
-                    //             profile={profiles[currentIndex]}
-                    //             // Pass the modified handleLike function
-                    //             onLike={handleLike}
-                    //             isVisible={true}
-                    //             // Add isLiking prop if ProfileCard needs to show feedback
-                    //             // isLiking={isLiking && profiles[currentIndex].id === /* potential ID being liked */}
-                    //         />
-                    //     )
-                    // )}
-    // ...
+    if (isLoading) {
+        // *** Use LinearGradient here too if you want gradient on loading screen ***
+        return (
+            <LinearGradient colors={['#222', '#111']} style={styles.container}>
+                <View style={styles.centered}>
+                    <ActivityIndicator size="large" color="#FFFFFF" />
+                </View>
+            </LinearGradient>
+        );
+    }
 
-
-    // --- Full Render Logic (incorporating ProfileCard usage example) ---
-
-     if (isLoading) {
-         return (
-             <View style={styles.container}>
-                 <View style={styles.centered}>
-                     <ActivityIndicator size="large" color="#FFFFFF" />
-                 </View>
-             </View>
-         );
-     }
-
-     if (!isLoading && profiles.length === 0 && !onReloadProfiles) {
-         return (
-             <View style={styles.container}>
-                 <View style={styles.centered}>
-                     <Text style={styles.endText}>No profiles to show.</Text>
+    // Handle no profiles case (without reload button)
+    if (!isLoading && profiles.length === 0 && !onReloadProfiles) {
+       // *** Use LinearGradient here too ***
+        return (
+             <LinearGradient colors={['#222', '#111']} style={styles.container}>
+                <View style={styles.centered}>
+                    <Text style={styles.endText}>No profiles to show.</Text>
+                    {/* Keep header structure for close button consistency */}
                      <View style={styles.header}>
                          <View style={styles.progressContainer} />
                          <Pressable onPress={onClose} style={styles.closeButton} hitSlop={15}>
                              <Ionicons name="close" size={28} color="#ffffff" style={styles.closeIconShadow} />
                          </Pressable>
                      </View>
-                     <Pressable onPress={onClose} style={styles.simpleButton}>
-                         <Text style={styles.simpleButtonText}>Go Back</Text>
-                     </Pressable>
-                 </View>
-             </View>
-         );
-     }
+                    <Pressable onPress={onClose} style={styles.simpleButton}>
+                        <Text style={styles.simpleButtonText}>Go Back</Text>
+                    </Pressable>
+                </View>
+             </LinearGradient>
+        );
+    }
 
-     const showEndScreen = !isLoading && currentIndex === profiles.length;
-     const showInitialEmptyScreen = !isLoading && profiles.length === 0 && onReloadProfiles;
+    const showEndScreen = !isLoading && currentIndex === profiles.length;
+    const showInitialEmptyScreen = !isLoading && profiles.length === 0 && onReloadProfiles;
+    const currentProfile = profiles[currentIndex];
 
-     return (
-         <View style={styles.container}>
-             {!(profiles.length === 0 && !onReloadProfiles) && (
-                 <View style={styles.header}>
+    // *** 2. Use LinearGradient as the root component ***
+    return (
+        <LinearGradient
+            // *** Replace with your desired gradient colors ***
+            colors={['#fe5e58', '#192f6a']} // Example: Blueish gradient
+            // colors={['#8a2387', '#e94057', '#f27121']} // Example: Pink/Orange gradient
+            // colors={['#333', '#111']} // Example: Dark grey gradient
+            style={styles.container}
+            // Optional: Adjust gradient direction
+            start={{ x: 0, y: 0.5 }} // Starts at the center of the left edge
+            end={{ x: 1, y: 0.5 }} 
+        >
+            {/* --- Header (Progress bars & Close button) --- */}
+            {!(profiles.length === 0 && !onReloadProfiles) && (
+                <View style={styles.header}>
+                    {/* Header content is unchanged */}
                      <View style={styles.progressContainer}>
                          {!showInitialEmptyScreen && !showEndScreen && profiles.length > 0 && profiles.map((_, index) => (
                              <View key={`progress-${index}`} style={styles.progressBarOuter}>
@@ -233,50 +233,75 @@ const ProfileStoryView: React.FC<ProfileStoryViewProps> = ({
                                      style={[
                                          styles.progressBarInner,
                                          { width: index < currentIndex ? '100%' : '0%' },
+                                         // White progress on gradient might be fine, adjust if needed
                                          { backgroundColor: index < currentIndex ? '#ffffff' : 'transparent' }
                                      ]}
                                  />
                              </View>
                          ))}
-                         {(showInitialEmptyScreen || showEndScreen || profiles.length === 0) && <View style={{flex: 1}}/>}
+                          {(showInitialEmptyScreen || showEndScreen || profiles.length === 0) && <View style={{flex: 1}}/>}
                      </View>
                      <Pressable onPress={onClose} style={styles.closeButton} hitSlop={15}>
                          <Ionicons name="close" size={28} color="#ffffff" style={styles.closeIconShadow} />
                      </Pressable>
-                 </View>
-             )}
+                </View>
+            )}
 
-             <View style={styles.contentArea}>
-                 {showInitialEmptyScreen ? (
-                     <View style={styles.centered}>
-                         <Text style={styles.endText}>No profiles to show right now.</Text>
-                         <Pressable onPress={handleReload} style={[styles.simpleButton, { marginBottom: 15 }]}>
-                             <Text style={styles.simpleButtonText}>Check Again</Text>
-                         </Pressable>
-                     </View>
-                 ) : showEndScreen ? (
-                     <View style={styles.centered}>
-                         <Text style={styles.endText}>That's everyone for now!</Text>
-                         {onReloadProfiles && (
-                             <Pressable onPress={handleReload} style={[styles.simpleButton, { marginBottom: 15 }]}>
-                                 <Text style={styles.simpleButtonText}>Reload</Text>
-                             </Pressable>
-                         )}
-                     </View>
-                 ) : (
-                     // Display current profile card - Ensure ProfileCard has onLike prop
-                     profiles[currentIndex] && (
-                         <ProfileCard
-                             key={profiles[currentIndex].id}
-                             profile={profiles[currentIndex]}
-                             onLike={handleLike} // <-- Pass the async handler here
-                             isVisible={true}
-                         />
-                     )
-                 )}
-             </View>
+            {/* --- Content Area (Wrapped in Gesture Handler) --- */}
+            <TapGestureHandler
+                ref={doubleTapRef}
+                numberOfTaps={2}
+                maxDelayMs={250}
+                onHandlerStateChange={({ nativeEvent }) => {
+                    if (nativeEvent.state === State.ACTIVE) {
+                        handleDoubleTap();
+                    }
+                }}
+            >
+                <Animated.View style={styles.contentAreaWrapper}>
+                    {/* --- Main Content (Card or Empty/End Screens) --- */}
+                    <View style={styles.contentArea}>
+                        {showInitialEmptyScreen ? (
+                            <View style={styles.centered}>
+                                <Text style={styles.endText}>No profiles to show right now.</Text>
+                                <Pressable onPress={handleReload} style={[styles.simpleButton, { marginBottom: 15 }]}>
+                                    <Text style={styles.simpleButtonText}>Check Again</Text>
+                                </Pressable>
+                            </View>
+                        ) : showEndScreen ? (
+                            <View style={styles.centered}>
+                                <Text style={styles.endText}>That's everyone for now!</Text>
+                                {onReloadProfiles && (
+                                    <Pressable onPress={handleReload} style={[styles.simpleButton, { marginBottom: 15 }]}>
+                                        <Text style={styles.simpleButtonText}>Reload</Text>
+                                    </Pressable>
+                                )}
+                            </View>
+                        ) : (
+                            currentProfile && (
+                                <ProfileCard
+                                    key={currentProfile.id}
+                                    profile={currentProfile}
+                                    // Like is handled by double tap now
+                                    // onLike={handleLike} // Remove if not needed by ProfileCard itself
+                                    isVisible={true}
+                                />
+                            )
+                        )}
+                    </View>
 
-             {!showEndScreen && !showInitialEmptyScreen && profiles[currentIndex] && (
+                    {/* --- Heart Animation Overlay (Unchanged) --- */}
+                    {!showInitialEmptyScreen && !showEndScreen && currentProfile && (
+                        <Animated.View style={[styles.likeAnimationOverlay, animatedHeartStyle]}>
+                            <Ionicons name="heart" size={100} color="rgba(255, 255, 255, 0.9)" />
+                        </Animated.View>
+                    )}
+
+                </Animated.View>
+            </TapGestureHandler>
+
+            {/* --- Navigation Overlays (Unchanged) --- */}
+            {!showEndScreen && !showInitialEmptyScreen && currentProfile && (
                  <>
                      <Pressable
                          style={[styles.navOverlay, styles.navOverlayLeft]}
@@ -289,20 +314,22 @@ const ProfileStoryView: React.FC<ProfileStoryViewProps> = ({
                      />
                  </>
              )}
-         </View>
-     );
+        </LinearGradient> // *** Close LinearGradient ***
+    );
 };
 
-// --- Styles remain unchanged ---
+// --- Styles ---
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: 'transparent',
-        position: 'relative',
+        // *** 3. Remove the specific backgroundColor ***
+        // backgroundColor: 'rgba(0,0,0,0.9)',
+        position: 'relative', // Keep position relative if needed
     },
+    // --- All other styles remain IDENTICAL to your second snippet ---
     header: {
         position: 'absolute',
-        top: 0,
+        top: Platform.OS === 'ios' ? 40 : 20,
         left: 0,
         right: 0,
         flexDirection: 'row',
@@ -322,7 +349,7 @@ const styles = StyleSheet.create({
     progressBarOuter: {
         flex: 1,
         height: '100%',
-        backgroundColor: 'rgba(255, 255, 255, 0.3)',
+        backgroundColor: 'rgba(255, 255, 255, 0.3)', // Semi-transparent white looks good on gradients
         borderRadius: 1.5,
         marginHorizontal: 2,
         overflow: 'hidden',
@@ -330,6 +357,7 @@ const styles = StyleSheet.create({
     progressBarInner: {
         height: '100%',
         borderRadius: 1.5,
+        backgroundColor: '#ffffff', // Solid white for filled part
     },
     closeButton: {
         padding: 5,
@@ -339,21 +367,28 @@ const styles = StyleSheet.create({
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 2,
     },
+    contentAreaWrapper: {
+        flex: 1,
+        position: 'relative',
+        minHeight: 200, // Keep if needed
+    },
     contentArea: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         width: '100%',
-        paddingTop: 60,
+        paddingTop: 60, // Adjust as needed for header overlap
         paddingBottom: 20,
         paddingHorizontal: 0,
+        zIndex: 1, // Content below header, potentially above nav overlays
     },
     navOverlay: {
         position: 'absolute',
-        top: 0,
+        top: 70, // Adjust to ensure it's below header
         bottom: 0,
-        width: '35%',
-        zIndex: 10,
+        width: '30%',
+        zIndex: 10, // Above content, below header
+        // backgroundColor: 'rgba(0,255,0,0.1)', // DEBUG
     },
     navOverlayLeft: {
         left: 0,
@@ -371,17 +406,17 @@ const styles = StyleSheet.create({
     endText: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: '#ffffff',
+        color: '#ffffff', // White text usually looks good on gradients
         textAlign: 'center',
         marginBottom: 25,
-        textShadowColor: 'rgba(0, 0, 0, 0.6)',
+        textShadowColor: 'rgba(0, 0, 0, 0.6)', // Keep text shadow for readability
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 3,
     },
     simpleButton: {
         paddingVertical: 12,
         paddingHorizontal: 30,
-        backgroundColor: 'rgba(255, 255, 255, 0.25)',
+        backgroundColor: 'rgba(255, 255, 255, 0.25)', // Semi-transparent white button
         borderRadius: 25,
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.6)',
@@ -396,7 +431,17 @@ const styles = StyleSheet.create({
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 2,
     },
+    likeAnimationOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 50, // Highest zIndex
+        pointerEvents: 'none',
+    },
 });
-
 
 export default ProfileStoryView;
