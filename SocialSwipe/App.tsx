@@ -1,4 +1,4 @@
-// App.tsx (Updated with Connections Tab - Fix for Navigator Children Error)
+// App.tsx (Updated for ProfileDetailScreen Navigation)
 
 // IMPORTANT: react-native-gesture-handler import must be at the very top
 import 'react-native-get-random-values';
@@ -36,11 +36,13 @@ import EditProfileScreen from './src/pages/EditProfile';
 import EventsScreen from './src/pages/EventsScreen';
 import ConversationsScreen from './src/pages/ConversationsScreen';
 import ConnectionsScreen from './src/pages/ConnectionsScreen'; // Adjust path if needed
+// *** ADDED: Import for the new Profile Detail Screen ***
+import ProfileDetailScreen from './src/pages/ProfileDetailScreen'; // <--- ADJUST PATH IF NEEDED
 
 // --- Import Icons ---
 import { Ionicons } from '@expo/vector-icons';
 
-// --- Type Definitions for Navigation (Unchanged) ---
+// --- Type Definitions for Navigation ---
 type AuthStackParamList = { Login: undefined; SignUp: undefined; };
 type OnboardingStackParamList = { CreateProfile: undefined; CreateBusinessProfileScreen: undefined; };
 type MainTabParamList = {
@@ -50,6 +52,8 @@ type MainTabParamList = {
     ConversationsTab: undefined;
     ProfileTab: undefined;
 };
+
+// *** MODIFIED: Added ProfileDetail to RootStackParamList ***
 type RootStackParamList = {
     Main: NavigatorScreenParams<MainTabParamList>;
     EditProfile: { profileData?: any };
@@ -61,6 +65,8 @@ type RootStackParamList = {
         recipientAvatarUrl: string | null;
         recipientId: string;
     };
+    // --- ADDED LINE ---
+    ProfileDetail: { userId: string }; // For displaying a user's profile
 };
 // --- End Type Definitions ---
 
@@ -187,7 +193,7 @@ function OnboardingStack({ initialRouteName }: { initialRouteName?: keyof Onboar
     );
 }
 
-// --- MainTabs ---
+// MainTabs (Unchanged)
 function MainTabs() {
     const { theme } = useTheme();
 
@@ -206,7 +212,6 @@ function MainTabs() {
     const blurTint = theme.isDark ? 'dark' : 'light';
 
     return (
-        // *** FIX: Ensure only Screen components are direct children ***
         <MainTabNav.Navigator
             sceneContainerStyle={{ backgroundColor: theme.colors.background }}
             screenOptions={({ route }) => ({
@@ -230,7 +235,6 @@ function MainTabs() {
                 tabBarBackground: () => {
                     return (
                         <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
-                             {/* Layer 1: Background */}
                              {useGradientTabBar && tabBarGradientConfig ? (
                                  <LinearGradient
                                      {...tabBarGradientConfig}
@@ -239,7 +243,6 @@ function MainTabs() {
                              ) : (
                                  <View style={{ flex: 1, backgroundColor: theme.colors.card }} />
                              )}
-                             {/* Layer 2: Blur */}
                              {applyTabBarBlur && (
                                  <BlurView
                                      intensity={90}
@@ -252,7 +255,6 @@ function MainTabs() {
                 },
             })}
         >
-            {/* Ensure no extra spaces/newlines between screens */}
             <MainTabNav.Screen name="DiscoverTab" component={DiscoverScreen} options={{ title: 'Discover' }} />
             <MainTabNav.Screen name="EventsTab" component={EventsScreen} options={{ title: 'Liked Profiles' }} />
             <MainTabNav.Screen name="ConnectionsTab" component={ConnectionsScreen} options={{ title: 'Connections' }} />
@@ -261,9 +263,10 @@ function MainTabs() {
         </MainTabNav.Navigator>
     );
 }
-// --- End MainTabs Modification ---
+// --- End MainTabs ---
 
-// --- RootStack (Unchanged) ---
+
+// --- RootStack ---
 function RootStack() {
      const { theme } = useTheme();
 
@@ -281,15 +284,24 @@ function RootStack() {
                 header: (props) => <AppHeader {...props} />,
             }}
         >
+            {/* Existing Screens */}
             <RootStackNav.Screen name="Main" component={MainTabs}/>
             <RootStackNav.Screen name="EditProfile" component={EditProfileScreen}/>
             <RootStackNav.Screen name="CreateProfile" component={CreateProfile}/>
             <RootStackNav.Screen name="CreateBusinessProfileScreen" component={CreateBusinessProfileScreen}/>
             <RootStackNav.Screen name="ChatRoomScreen" component={ChatRoomScreen}/>
+
+            {/* *** ADDED: Registration for the Profile Detail Screen *** */}
+            <RootStackNav.Screen
+                name="ProfileDetail"
+                component={ProfileDetailScreen}
+                // You can customize options like the header title here if needed
+                options={{ title: 'Profile Details' }}
+            />
         </RootStackNav.Navigator>
     );
 }
-// --- End RootStack ---
+// --- End RootStack Modification ---
 
 
 // --- AppContent (Unchanged) ---
@@ -305,7 +317,6 @@ function AppContent() {
         );
     }
     if (session && session.user) {
-        // Onboarding check logic would go here
         return <RootStack />;
     } else {
         return <AuthStack />;
@@ -369,5 +380,5 @@ const styles = StyleSheet.create({
     rightSpacer: { width: (45 + 5*2), }
 });
 
-// Export RootStackParamList (Unchanged)
+// Export RootStackParamList (Now includes ProfileDetail)
 export type { RootStackParamList };

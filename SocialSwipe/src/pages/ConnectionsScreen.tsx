@@ -1,4 +1,4 @@
-// src/screens/ConnectionsScreen.tsx
+// src/screens/ConnectionsScreen.tsx (Modified for Navigation)
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
@@ -7,9 +7,9 @@ import {
     FlatList,
     ActivityIndicator,
     RefreshControl,
-    SafeAreaView // Use SafeAreaView for top/bottom padding
+    SafeAreaView
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native'; // Import useFocusEffect
+import { useFocusEffect } from '@react-navigation/native';
 
 // Import your Supabase client
 import { supabase } from '../lib/supabaseClient'; // Adjust path as needed
@@ -25,12 +25,17 @@ interface MatchedProfile {
     // Include other fields returned by your get_matches function if needed
 }
 
-// Navigation prop type (adjust based on your navigation setup)
-import { StackNavigationProp } from '@react-navigation/stack'; // Example
-type ConnectionsScreenNavigationProp = StackNavigationProp<any, 'Connections'>; // Adjust StackParamList and Screen name
+// Navigation prop type
+import { StackNavigationProp } from '@react-navigation/stack';
+// --- IMPORT YOUR PARAM LIST TYPE (Adjust path as needed) ---
+// This assumes you defined RootStackParamList in your navigator file
+import { RootStackParamList } from '../navigation/AppNavigator'; // <--- ADJUST THIS PATH
+
+// --- UPDATE NAVIGATION PROP TYPE ---
+type ConnectionsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Connections'>;
 
 interface ConnectionsScreenProps {
-    navigation: ConnectionsScreenNavigationProp; // Or appropriate type
+    navigation: ConnectionsScreenNavigationProp;
 }
 
 const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({ navigation }) => {
@@ -39,14 +44,13 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({ navigation }) => 
     const [error, setError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
 
-    // --- Fetch Matches Function ---
+    // --- Fetch Matches Function (No changes needed) ---
     const fetchMatches = async () => {
         console.log("Fetching matches...");
         setIsLoading(true);
         setError(null);
 
         try {
-            // 1. Get current user ID
             const { data: { user }, error: authError } = await supabase.auth.getUser();
             if (authError || !user) {
                 throw new Error(authError?.message || 'User not authenticated.');
@@ -54,7 +58,6 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({ navigation }) => 
             const currentUserId = user.id;
             console.log("Current user ID:", currentUserId);
 
-            // 2. Call the RPC function
             const { data, error: rpcError } = await supabase.rpc('get_matches', {
                 current_user_id: currentUserId
             });
@@ -65,60 +68,57 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({ navigation }) => 
             }
 
             console.log("Matches received:", data);
-            // Ensure data is an array, even if null/undefined is returned
             setMatches(Array.isArray(data) ? data : []);
 
         } catch (err: any) {
             console.error("Error fetching matches:", err);
             setError(err.message || 'An unexpected error occurred.');
-            setMatches([]); // Clear matches on error
+            setMatches([]);
         } finally {
             setIsLoading(false);
-            setRefreshing(false); // Ensure refreshing indicator stops
+            setRefreshing(false);
         }
     };
 
-    // --- Use useFocusEffect to fetch data when the screen comes into view ---
+    // --- Use useFocusEffect (No changes needed) ---
      useFocusEffect(
          useCallback(() => {
-             fetchMatches(); // Fetch when screen is focused
-
-             // Optional: Return a cleanup function if needed
-             // return () => { console.log("Connections screen unfocused"); };
-         }, []) // Empty dependency array means it runs on focus
+             fetchMatches();
+         }, [])
      );
 
 
-    // --- Pull-to-Refresh Handler ---
+    // --- Pull-to-Refresh Handler (No changes needed) ---
     const onRefresh = useCallback(() => {
         setRefreshing(true);
-        fetchMatches(); // Re-fetch data
-    }, []); // Empty dependency array
+        fetchMatches();
+    }, []);
 
 
-    // --- Item Press Handler ---
+    // --- *** MODIFIED: Item Press Handler *** ---
     const handleMatchPress = (profileId: string) => {
         console.log('Pressed match:', profileId);
-        // Navigate to chat screen or profile details screen
-        // Example navigation:
-        // navigation.navigate('ChatScreen', { userId: profileId });
-        // navigation.navigate('ProfileDetail', { profileId: profileId });
-        alert(`Maps to profile/chat for user: ${profileId}`); // Placeholder action
+
+        // REMOVED the alert:
+        // alert(`Maps to profile/chat for user: ${profileId}`);
+
+        // ADDED navigation:
+        // Navigates to the 'ProfileDetail' screen (ensure this name matches your Stack.Screen name)
+        // Passes the profileId as the 'userId' parameter
+        navigation.navigate('ProfileDetail', { userId: profileId });
     };
 
 
-    // --- Render Logic ---
+    // --- Render Logic (No changes needed) ---
 
     const renderEmptyListComponent = () => {
         if (isLoading) {
-             // Don't show "no matches" while initially loading
              return null;
         }
          if (error) {
              return (
                  <View style={styles.centered}>
                      <Text style={styles.infoText}>Error: {error}</Text>
-                     {/* Optionally add a retry button */}
                  </View>
              );
          }
@@ -131,35 +131,35 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({ navigation }) => 
     };
 
 
+    // --- Return JSX (No changes needed in structure) ---
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.header}>
                  <Text style={styles.headerTitle}>Connections</Text>
-                 {/* You could add filter/search icons here if needed */}
             </View>
 
-            {/* Show loading indicator only when not refreshing */}
             {isLoading && !refreshing && (
                  <ActivityIndicator size="large" color="#FFAFBD" style={styles.loadingIndicator} />
              )}
 
             <FlatList
                 data={matches}
+                // Pass the MODIFIED handleMatchPress function to the item
                 renderItem={({ item }) => (
                     <MatchBubbleItem
                         profile={item}
-                        onPress={handleMatchPress}
+                        onPress={handleMatchPress} // This now triggers navigation
                     />
                 )}
                 keyExtractor={(item) => item.user_id}
                 contentContainerStyle={styles.listContentContainer}
                 ListEmptyComponent={renderEmptyListComponent}
-                refreshControl={ // Add pull-to-refresh
+                refreshControl={
                      <RefreshControl
                          refreshing={refreshing}
                          onRefresh={onRefresh}
-                         colors={['#FFAFBD', '#FFC3A0']} // Spinner colors
-                         tintColor={'#FFAFBD'} // iOS spinner color
+                         colors={['#FFAFBD', '#FFC3A0']}
+                         tintColor={'#FFAFBD'}
                      />
                  }
             />
@@ -167,47 +167,48 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({ navigation }) => 
     );
 };
 
+// --- Styles (No changes needed) ---
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: '#F8F9FA', // Light background for the screen
+        backgroundColor: '#F8F9FA',
     },
      header: {
          paddingVertical: 15,
          paddingHorizontal: 20,
          borderBottomWidth: 1,
          borderBottomColor: '#E9ECEF',
-         backgroundColor: '#FFFFFF', // White header background
+         backgroundColor: '#FFFFFF',
      },
      headerTitle: {
          fontSize: 24,
          fontWeight: 'bold',
-         color: '#343A40', // Dark title color
+         color: '#343A40',
      },
     listContentContainer: {
-        paddingTop: 10, // Add some padding at the top of the list
-        paddingBottom: 20, // Padding at the bottom
+        paddingTop: 10,
+        paddingBottom: 20,
     },
     centered: {
-        flex: 1, // Make it take available space if list is empty
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 30,
-        marginTop: 50, // Add margin from the top
+        marginTop: 50,
     },
     infoText: {
         fontSize: 18,
-        color: '#6C757D', // Grayish text
+        color: '#6C757D',
         textAlign: 'center',
         marginBottom: 8,
     },
      subInfoText: {
          fontSize: 14,
-         color: '#ADB5BD', // Lighter gray text
+         color: '#ADB5BD',
          textAlign: 'center',
      },
      loadingIndicator: {
-         marginTop: 30, // Position loading indicator if needed outside FlatList
+         marginTop: 30,
      }
 });
 
