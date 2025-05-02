@@ -14,6 +14,8 @@ import {
     Pressable,
     NativeSyntheticEvent,
     NativeTouchEvent,
+    // *** ADDED: For blur effect (optional, requires separate setup if using) ***
+    // import { BlurView } from 'expo-blur'; // Uncomment if you have expo-blur installed and want actual blur
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { PanGestureHandler, PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
@@ -26,6 +28,8 @@ import Animated, {
     Extrapolate,
     runOnJS,
 } from 'react-native-reanimated';
+// *** ADDED: Import LinearGradient ***
+import { LinearGradient } from 'expo-linear-gradient'; // Make sure to install: npx expo install expo-linear-gradient
 
 // --- Define Business Listing Type (Keep as is) ---
 export interface BusinessListing {
@@ -79,28 +83,27 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
     const [showDetails, setShowDetails] = useState(false);
     const translateX = useSharedValue(0);
     const translateY = useSharedValue(0);
-
-    // --- State for Photo Index (Keep as is) ---
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
-    // --- Photo Logic (Keep as is) ---
     const photos = listing?.listing_photos?.filter(Boolean) ?? [];
     const hasMultiplePhotos = photos.length > 1;
     const fallbackImageUrl = 'https://placehold.co/600x400/cccccc/ffffff?text=No+Image';
     const currentImageUrl = photos[currentPhotoIndex] || fallbackImageUrl;
 
-    // --- Effect to Reset Index (Keep as is) ---
     useEffect(() => {
         setCurrentPhotoIndex(0);
-    }, [listing?.id]);
+        setShowDetails(false); // Also reset details view on new listing
+        translateX.value = 0; // Reset animation values if component re-renders with new listing
+        translateY.value = 0;
+    }, [listing?.id, translateX, translateY]); // Added translateX/Y dependency for safety
 
-    // --- Toggle Details (Keep as is) ---
-    const toggleDetails = () => {
+    // Modified toggleDetails: Now only toggles state, doesn't rely on a button within the removed section
+    const toggleDetails = useCallback(() => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        setShowDetails(!showDetails);
-    };
+        setShowDetails(prev => !prev);
+    }, []);
 
-    // --- Gesture Handler (Corrected for performance - Keep as is) ---
+
     type AnimatedGHContext = { startX: number; startY: number; };
     const gestureHandler = useAnimatedGestureHandler<
         PanGestureHandlerGestureEvent,
@@ -112,32 +115,35 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
         },
         onActive: (event, ctx) => {
             translateX.value = ctx.startX + event.translationX;
+            // Dampen vertical movement during swipe
             translateY.value = ctx.startY + event.translationY * 0.1;
         },
         onEnd: (event) => {
+            // Check if swipe distance exceeds threshold
             if (Math.abs(translateX.value) > SWIPE_THRESHOLD) {
                 const direction = Math.sign(translateX.value);
-                const targetX = direction * screenWidth * 1.5;
+                const targetX = direction * screenWidth * 1.5; // Swipe off screen
 
-                // Trigger action immediately for swipe
-                if (direction > 0) {
+                // Determine action based on swipe direction
+                if (direction > 0) { // Swiped right (Like)
+                    // IMPORTANT: Use runOnJS to call React state updates/logic from Reanimated worklet
                     runOnJS(onLikeBusiness)();
-                } else {
+                } else { // Swiped left (Dismiss)
                     runOnJS(onDismissBusiness)();
                 }
 
-                // Start animation concurrently
+                // Animate the card off screen
                 translateX.value = withSpring(targetX, SPRING_CONFIG);
+                // Add some vertical movement to the exit animation based on swipe gesture
                 translateY.value = withSpring(event.translationY * 0.5, SPRING_CONFIG);
             } else {
-                // Snap back
+                // If swipe wasn't far enough, animate back to center
                 translateX.value = withSpring(0, SPRING_CONFIG);
                 translateY.value = withSpring(0, SPRING_CONFIG);
             }
         },
     });
 
-    // --- Animated Style (Keep as is) ---
     const animatedCardStyle = useAnimatedStyle(() => {
         const rotateZ = interpolate(
             translateX.value,
@@ -147,8 +153,8 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
         );
         const opacity = interpolate(
             Math.abs(translateX.value),
-            [0, SWIPE_THRESHOLD * 1.5],
-            [1, 0.7],
+            [0, SWIPE_THRESHOLD * 1.5], // Fade out faster as it swipes off
+            [1, 0.7], // Start fully opaque, end partially transparent during swipe off
             Extrapolate.CLAMP
         );
         return {
@@ -161,7 +167,6 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
         };
     });
 
-    // --- Photo Navigation Handlers (Keep as is) ---
     const handleNextPhoto = useCallback(() => {
         if (currentPhotoIndex < photos.length - 1) {
             setCurrentPhotoIndex(prevIndex => prevIndex + 1);
@@ -169,51 +174,74 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
     }, [currentPhotoIndex, photos.length]);
 
     const handlePreviousPhoto = useCallback(() => {
+        // Check if we are not already at the first photo
         if (currentPhotoIndex > 0) {
+            // CORRECTED: Decrement the index to go to the previous photo
             setCurrentPhotoIndex(prevIndex => prevIndex - 1);
         }
-    }, [currentPhotoIndex]);
+    }, [currentPhotoIndex]); // Dependency is correct
 
-    // --- Tap Handler (Keep as is) ---
-     const handlePhotoTap = useCallback((event: NativeSyntheticEvent<NativeTouchEvent>) => {
-        // Allow middle tap even if only one photo to toggle details
-
+    // Modified handlePhotoTap: Now only switches photos or does nothing in center
+    // It no longer calls toggleDetails, as the button is gone.
+    // You might want to re-add the toggleDetails call here if you want center taps to expand details.
+    const handlePhotoTap = useCallback((event: NativeSyntheticEvent<NativeTouchEvent>) => {
         const tapX = event.nativeEvent.locationX;
-        const cardWidth = styles.cardOuterContainer.width === '100%' ? screenWidth * 0.98 : (styles.cardOuterContainer.width || screenWidth * 0.98);
+        // Use screenWidth as the basis since card width is '100%' relative to container
+        const cardWidth = screenWidth * 0.98; // Approximate width based on potential parent padding
         const tapAreaWidth = cardWidth * TAP_AREA_WIDTH_PERCENTAGE;
 
         if (hasMultiplePhotos && tapX < tapAreaWidth) {
-             handlePreviousPhoto();
+            handlePreviousPhoto();
         } else if (hasMultiplePhotos && tapX > cardWidth - tapAreaWidth) {
-             handleNextPhoto();
-        } else {
-              toggleDetails(); // Middle tap toggles details
+            handleNextPhoto();
         }
-    }, [hasMultiplePhotos, handlePreviousPhoto, handleNextPhoto, toggleDetails, photos.length]);
+        // REMOVED: toggleDetails(); // Toggle details only if tapping center area
+        // Decide if you want tapping the center of the image to still toggle details
+        // If yes, uncomment the line above. If no, leave it commented.
+    }, [hasMultiplePhotos, handlePreviousPhoto, handleNextPhoto, /* toggleDetails */ screenWidth]);
+
 
     // --- Null Check (Keep as is) ---
     if (!listing) {
-        return null;
+        return (
+             <View style={styles.loadingContainer}>
+                 <Text>Loading next profile...</Text>
+                 {/* Optional: Add an ActivityIndicator here */}
+             </View>
+        );
     }
 
-    // --- Calculations (Keep as is) ---
+    // --- Calculations (Keep 'formattedLocation' and 'fullAddress') ---
     const locationParts = [listing.address_city, listing.address_state].filter(Boolean);
-    const formattedLocation = locationParts.join(', ');
-    const fullAddress = [
+    const formattedLocation = locationParts.join(', '); // Used under title now
+    const fullAddress = [ // Used in details section
         listing.address_street,
         listing.address_city,
         listing.address_state,
         listing.address_postal_code,
         listing.address_country
     ].filter(Boolean).join(', ');
-    const hasDetailsToShow = listing.description || listing.phone_number || fullAddress || listing.category;
+    // Modified: hasDetailsToShow no longer checks category as it won't be displayed *initially*
+    const hasDetailsToShow = listing.description || listing.phone_number || fullAddress; // Removed listing.category check here
+
+    // --- Action Handlers (Keep as is) ---
+    const handleLikePress = () => {
+        runOnJS(onLikeBusiness)();
+        translateX.value = withSpring(screenWidth * 1.5, SPRING_CONFIG);
+        translateY.value = withSpring(0, SPRING_CONFIG);
+    };
+
+    const handleDismissPress = () => {
+        runOnJS(onDismissBusiness)();
+        translateX.value = withSpring(-screenWidth * 1.5, SPRING_CONFIG);
+        translateY.value = withSpring(0, SPRING_CONFIG);
+    };
 
 
-    // --- JSX Structure (Action Button onPress EDITED) ---
+    // --- JSX Structure (MODIFIED) ---
     return (
         <PanGestureHandler onGestureEvent={gestureHandler} failOffsetY={[-5, 5]} activeOffsetX={[-5, 5]}>
             <Animated.View style={[styles.animatedWrapper, animatedCardStyle]}>
-                {/* Main Card Structure */}
                 <View style={styles.cardOuterContainer}>
                     <View style={styles.cardContentContainer} collapsable={false}>
                         <ImageBackground
@@ -224,7 +252,7 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                                 console.warn(`Image load error for listing ${listing.id} (URL: ${currentImageUrl}): ${error.nativeEvent.error}`);
                             }}
                         >
-                            {/* Progress Bars */}
+                            {/* Progress Bars (Keep as is) */}
                             {hasMultiplePhotos && (
                                 <View style={styles.progressBarsContainer}>
                                     {photos.map((_, index) => (
@@ -239,7 +267,7 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                                 </View>
                             )}
 
-                            {/* Pressable Area for Photo Tapping */}
+                            {/* Pressable Area for Photo Tapping (Keep as is) */}
                             <Pressable
                                 style={styles.photoTapArea}
                                 onPress={handlePhotoTap}
@@ -247,98 +275,91 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                                 {/* Transparent Pressable */}
                             </Pressable>
 
-                            {/* Title Row */}
-                             <View style={styles.titleRow}>
-                                 <Text style={styles.title} numberOfLines={2}>{listing.business_name || 'Unnamed Business'}</Text>
-                             </View>
+                             {/* Title Row (Keep as is) */}
+                            <View style={styles.titleRow}>
+                                <Text style={styles.title} numberOfLines={2}>{listing.business_name || 'Unnamed Business'}</Text>
+                                {formattedLocation ? (
+                                    <Text style={styles.locationText} numberOfLines={1}>
+                                        {formattedLocation}
+                                    </Text>
+                                ) : null}
+                            </View>
 
-                            {/* Gradient Overlay */}
-                            <View style={styles.gradientOverlay}>
-                                <View style={styles.contentOverlay}>
-                                    {/* Location Info */}
-                                    {formattedLocation ? (
-                                        <View style={styles.infoRow}>
-                                            <Feather name="map-pin" size={14} color="#FFFFFFCC" style={styles.icon} />
-                                            <Text style={styles.infoText} numberOfLines={1}>
-                                                {formattedLocation}
-                                            </Text>
-                                        </View>
-                                    ) : null}
+                            {/* ***** SECTION REMOVED ***** */}
+                            {/* The gradientOverlay View which contained contentOverlay, badgeRow, and detailsToggleSection has been removed */}
 
-                                    {/* Category Badge */}
-                                    {listing.category ? (
-                                        <View style={styles.badgeRow}>
-                                            <View style={[styles.badge, styles.categoryBadge]}>
-                                                <Text style={styles.categoryBadgeText}>{listing.category}</Text>
-                                            </View>
-                                        </View>
-                                    ) : <View style={{ marginBottom: 15 }} />}
 
-                                    {/* Details Toggle Section */}
-                                     {hasDetailsToShow && (
-                                         <View style={styles.detailsToggleSection}>
-                                             <TouchableOpacity onPress={toggleDetails} style={styles.detailsButton}>
-                                                 <Text style={styles.detailsButtonText}>
-                                                     {showDetails ? "Hide Details" : "Show Details"}
-                                                 </Text>
-                                                 <Feather
-                                                     name={showDetails ? "chevron-up" : "chevron-down"}
-                                                     size={20}
-                                                     color="#FFFFFF"
-                                                 />
-                                             </TouchableOpacity>
-                                         </View>
-                                     )}
+                            {/* ***** Action Buttons Area (Kept as is) ***** */}
+                            <View style={styles.actionButtonAreaContainer}>
+                               
+                            
+                                    {/* Uncomment below if using expo-blur */}
+                                    {/* <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} /> */}
+                            
+
+                                {/* Buttons */}
+                                <View style={styles.actionButtonsRow}>
+                                    {/* Dislike Button */}
+                                    <TouchableOpacity
+                                        style={styles.touchablePill}
+                                        onPress={handleDismissPress}
+                                        activeOpacity={0.8}
+                                    >
+                                        <LinearGradient
+                                            colors={['#FF6B6B', '#D93A3A']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 1 }}
+                                            style={styles.buttonPill}
+                                        >
+                                            <Ionicons name="close" size={28} color="#FFFFFF" />
+                                        </LinearGradient>
+                                    </TouchableOpacity>
+
+                                    {/* Like Button */}
+                                    <TouchableOpacity
+                                        style={styles.touchablePill}
+                                        onPress={handleLikePress}
+                                        activeOpacity={0.8}
+                                    >
+                                        <LinearGradient
+                                            colors={['#4CAF50', '#2196F3']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 1 }}
+                                            style={styles.buttonPill}
+                                        >
+                                            <Ionicons name="heart" size={26} color="#FFFFFF" />
+                                        </LinearGradient>
+                                    </TouchableOpacity>
                                 </View>
                             </View>
+                            {/* ***** END of Action Buttons Area ***** */}
 
-                            {/* Action Buttons --- ***** EDITED FOR PERFORMANCE ***** --- */}
-                            <View style={styles.actionButtonsContainer}>
-                                <TouchableOpacity
-                                    style={[styles.actionButton, styles.skipButton]}
-                                    onPress={() => {
-                                        // ***** CHANGE START: Trigger action immediately for dismiss button *****
-                                        runOnJS(onDismissBusiness)();
-                                        // ***** CHANGE END *****
-
-                                        // Animate out left (remove callback)
-                                        translateX.value = withSpring(-screenWidth * 1.5, SPRING_CONFIG);
-                                        translateY.value = withSpring(0, SPRING_CONFIG);
-                                    }}
-                                >
-                                    <Ionicons name="close" size={32} color="#F15A6A" />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.actionButton, styles.likeButton]}
-                                     onPress={() => {
-                                         // ***** CHANGE START: Trigger action immediately for like button *****
-                                         runOnJS(onLikeBusiness)();
-                                         // ***** CHANGE END *****
-
-                                         // Animate out right (remove callback)
-                                         translateX.value = withSpring(screenWidth * 1.5, SPRING_CONFIG);
-                                         translateY.value = withSpring(0, SPRING_CONFIG);
-                                     }}
-                                >
-                                    <Ionicons name="heart" size={30} color="#FFFFFF" />
-                                </TouchableOpacity>
-                            </View>
                         </ImageBackground> {/* End ImageBackground */}
                     </View> {/* End cardContentContainer */}
 
-                    {/* Collapsible Details Section */}
+                    {/* Collapsible Details Section (Keep as is, but triggered differently) */}
+                    {/* Note: The 'toggleDetails' function still exists and controls this, */}
+                    {/* but the button that called it has been removed. Decide how you want */}
+                    {/* to trigger 'toggleDetails' now (e.g., tapping center of image?) */}
                     {showDetails && hasDetailsToShow && (
                         <ScrollView
                             style={styles.detailsContainer}
-                            nestedScrollEnabled={true}
+                            nestedScrollEnabled={true} // Important for scrollable content inside PanGestureHandler
                         >
-                            {/* Details Content... (kept as is) */}
+                            {/* You might want to add the Category here if it's important detail */}
+                            {listing.category ? (
+                                <View style={styles.detailsBlock}>
+                                    <Text style={styles.detailsHeading}>Category</Text>
+                                     {/* Simple text display, or style it as needed */}
+                                    <Text style={styles.detailsInfoText}>{listing.category}</Text>
+                                </View>
+                            ) : null}
                             {listing.description ? (
                                 <View style={styles.detailsBlock}>
                                     <Text style={styles.detailsHeading}>Description</Text>
                                     <Text style={styles.detailsDescription}>{listing.description}</Text>
                                 </View>
-                            ) : null }
+                            ) : null}
                             {listing.phone_number ? (
                                 <View style={styles.detailsBlock}>
                                     <Text style={styles.detailsHeading}>Phone</Text>
@@ -347,7 +368,7 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                                         <Text style={styles.detailsInfoText}>{listing.phone_number}</Text>
                                     </View>
                                 </View>
-                            ) : null }
+                            ) : null}
                             {fullAddress ? (
                                 <View style={styles.detailsBlock}>
                                     <Text style={styles.detailsHeading}>Address</Text>
@@ -356,7 +377,7 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                                         <Text style={styles.detailsInfoText}>{fullAddress}</Text>
                                     </View>
                                 </View>
-                            ) : null }
+                            ) : null}
                         </ScrollView>
                     )}
                 </View> {/* End cardOuterContainer */}
@@ -365,60 +386,66 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
     );
 };
 
-// --- Styles (Keep as is) ---
+// --- Styles (MODIFIED) ---
 const styles = StyleSheet.create({
-    animatedWrapper: {
+    loadingContainer: { // Kept as is
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: '#f0f0f0',
     },
-     cardOuterContainer: {
-        width: '100%',
-        height: '100%',
-        borderRadius: 12,
+    animatedWrapper: { // Kept as is
+        width: screenWidth * 0.98,
+        height: screenHeight * 0.77,
+        alignSelf: 'center',
+    },
+    cardOuterContainer: { // Kept as is
+        flex: 1,
+        borderRadius: 18,
         overflow: 'hidden',
         backgroundColor: '#FFFFFF',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 5,
-        elevation: 4,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 8,
         flexDirection: 'column',
-     },
-    cardContentContainer: {
+    },
+    cardContentContainer: { // Kept as is
         flex: 1,
         position: 'relative',
+        overflow: 'hidden',
     },
-    imageBackground: {
+    imageBackground: { // Kept as is
         flex: 1,
-        width: '100%',
-        justifyContent: 'flex-end',
+        justifyContent: 'flex-end', // This is important for positioning bottom elements
         position: 'relative',
+        overflow: 'hidden',
     },
-    progressBarsContainer: {
+    progressBarsContainer: { // Kept as is
         position: 'absolute',
-        top: 8,
-        left: 8,
-        right: 8,
+        top: 12,
+        left: 12,
+        right: 12,
         flexDirection: 'row',
         alignItems: 'center',
-        height: 4,
+        height: 5,
         paddingHorizontal: 4,
         zIndex: 10,
     },
-    progressBar: {
+    progressBar: { // Kept as is
         flex: 1,
         height: '100%',
-        borderRadius: 2,
-        marginHorizontal: 2,
+        borderRadius: 2.5,
+        marginHorizontal: 3,
     },
-    progressBarActive: {
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    progressBarActive: { // Kept as is
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
     },
-    progressBarInactive: {
-        backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    progressBarInactive: { // Kept as is
+        backgroundColor: 'rgba(255, 255, 255, 0.5)',
     },
-    photoTapArea: {
+    photoTapArea: { // Kept as is
         position: 'absolute',
         top: 0,
         left: 0,
@@ -426,109 +453,126 @@ const styles = StyleSheet.create({
         bottom: 0,
         zIndex: 1,
     },
-    titleRow: {
+    titleRow: { // Kept as is
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
-        paddingTop: 20,
-        paddingHorizontal: 16,
-        paddingBottom: 8,
+        paddingTop: 25,
+        paddingHorizontal: 20,
+        paddingBottom: 10,
         zIndex: 5,
     },
-    title: {
-        fontSize: 26,
+    title: { // Kept as is
+        fontSize: 28,
         fontWeight: 'bold',
         color: '#FFFFFF',
-        textShadowColor: 'rgba(0, 0, 0, 0.7)',
+        textShadowColor: 'rgba(0, 0, 0, 0.8)',
+        textShadowOffset: { width: 1, height: 2 },
+        textShadowRadius: 5,
+    },
+    locationText: { // Kept as is
+        fontSize: 16,
+        fontWeight: '500',
+        color: '#FFFFFFE6',
+        marginTop: 5,
+        textShadowColor: 'rgba(0, 0, 0, 0.8)',
         textShadowOffset: { width: 1, height: 1 },
         textShadowRadius: 4,
     },
-    gradientOverlay: {
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
-        paddingTop: 10,
-        paddingBottom: 80,
-        zIndex: 5,
-    },
-    contentOverlay: {
-        paddingHorizontal: 16,
-    },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 6,
-    },
-    infoText: {
-        fontSize: 14,
-        color: '#FFFFFFCC',
-        marginLeft: 6,
-        flex: 1,
-    },
-    icon: { /* Style as needed */ },
-    badgeRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        marginBottom: 15,
-    },
-    badge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-        marginRight: 6,
-        marginBottom: 6,
-    },
-    categoryBadge: {
-        backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    },
-    categoryBadgeText: {
-        fontSize: 12,
-        fontWeight: '500',
-        color: '#FFFFFF',
-    },
-     detailsToggleSection: {
-        alignItems: 'flex-start',
-     },
-    detailsButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 5,
-    },
-    detailsButtonText: {
-        color: '#FFFFFF',
-        fontWeight: '600',
-        marginRight: 5,
-    },
+
+    // ***** STYLES REMOVED *****
+    // gradientOverlay, contentOverlay, badgeRow, badge, categoryBadge,
+    // categoryBadgeText, detailsToggleSection, detailsButton, detailsButtonText
+    // have been removed as their corresponding elements are gone.
+
+    // --- Details Section Styles --- (Kept as is)
     detailsContainer: {
         maxHeight: screenHeight * 0.25,
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingHorizontal: 20,
+        paddingTop: 20,
+        paddingBottom: 16,
         borderTopWidth: 1,
-        borderTopColor: '#E0E0E0',
+        borderTopColor: '#EAEAEA',
+        backgroundColor: '#FFFFFF',
         flexGrow: 0,
         flexShrink: 1,
     },
-    detailsBlock: { marginBottom: 15, },
+    detailsBlock: { marginBottom: 18 },
     detailsHeading: {
-        fontSize: 13, fontWeight: 'bold', color: '#888',
-        textTransform: 'uppercase', marginBottom: 5,
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#666',
+        textTransform: 'uppercase',
+        marginBottom: 8,
+        letterSpacing: 0.5,
     },
-    detailsDescription: { fontSize: 15, color: '#333', lineHeight: 22, },
-    detailsInfoRow: { flexDirection: 'row', alignItems: 'flex-start', },
-    iconDetails: { marginRight: 10, marginTop: 2, color: '#555', width: 16, },
-    detailsInfoText: { fontSize: 14, color: '#555', flex: 1, lineHeight: 20, },
-    actionButtonsContainer: {
+    detailsDescription: {
+        fontSize: 15,
+        color: '#333',
+        lineHeight: 23,
+    },
+    detailsInfoRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginTop: 4,
+    },
+    iconDetails: {
+        marginRight: 12,
+        marginTop: 3,
+        color: '#555',
+        width: 16,
+    },
+    detailsInfoText: {
+        fontSize: 15,
+        color: '#444',
+        flex: 1,
+        lineHeight: 21,
+    },
+
+    // ***** Action Buttons Area Styles ***** (Kept as is)
+    actionButtonAreaContainer: {
         position: 'absolute',
-        bottom: 20, left: 0, right: 0, zIndex: 6,
-        flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 6,
+        paddingBottom: Platform.OS === 'ios' ? 30 : 20,
+        paddingTop: 15,
+        alignItems: 'center',
     },
-    actionButton: {
-        width: 64, height: 64, borderRadius: 32,
-        justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF',
-        shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3, shadowRadius: 4, elevation: 6,
+    buttonBackgroundStrip: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        top: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.3)',
     },
-    skipButton: { /* Specific styles if needed */ },
-    likeButton: { backgroundColor: '#4CAF50', },
+    actionButtonsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        width: '105%',
+        position: 'relative',
+        zIndex: 7,
+    },
+    touchablePill: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
+        elevation: 7,
+    },
+    buttonPill: {
+        width: 120,
+        height: 66,
+        borderRadius: 27.5,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    // ***** END of Action Buttons Styles *****
 });
 
 export default BusinessProfileCard;
