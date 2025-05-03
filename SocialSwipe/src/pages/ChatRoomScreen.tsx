@@ -278,7 +278,7 @@ const ChatRoomScreen: React.FC = () => {
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0} // Adjust as needed
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0} // Adjust as needed
       >
         {/* Message List */}
         <FlatList
