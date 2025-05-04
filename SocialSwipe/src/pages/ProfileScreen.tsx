@@ -473,8 +473,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15, // Horizontal padding still applies relative to the original container size
     width: '100%',
     // *** ADD THIS TRANSFORM ***
-    transform: [{ scale: 0.82 }], // Scale down to 90% (Adjust 0.9 to 0.95, 0.88 etc. as needed)
-    marginTop: -82 ,
+    transform: [{ scale: 0.89 }], // Scale down to 90% (Adjust 0.9 to 0.95, 0.88 etc. as needed)
+    marginTop: -52 ,
   },
   // --- END: UPDATED profileCardContainer style block ---
 

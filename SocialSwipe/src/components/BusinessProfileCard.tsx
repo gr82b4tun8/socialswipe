@@ -17,7 +17,7 @@ import {
     // *** ADDED: For blur effect (optional, requires separate setup if using) ***
     // import { BlurView } from 'expo-blur'; // Uncomment if you have expo-blur installed and want actual blur
 } from 'react-native';
-import { Feather, Ionicons } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons'; // Ionicons is already imported
 import { PanGestureHandler, PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import Animated, {
     useSharedValue,
@@ -48,11 +48,12 @@ export interface BusinessListing {
     listing_photos?: string[]; // Array of photo URLs
 }
 
-// --- Business Profile Card Props (Keep as is) ---
+// --- Business Profile Card Props (MODIFIED: Added onShowAttendees) ---
 interface BusinessProfileCardProps {
     listing: BusinessListing | null;
     onLikeBusiness: () => void;
     onDismissBusiness: () => void;
+    onShowAttendees: () => void; // <<< ADDED: Prop for handling attendees button press
 }
 
 // Enable LayoutAnimation for Android (Keep as is)
@@ -74,11 +75,12 @@ const SPRING_CONFIG = {
     restSpeedThreshold: 0.01,
 };
 
-// --- Business Profile Card Component ---
+// --- Business Profile Card Component (MODIFIED: Added onShowAttendees prop) ---
 const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
     listing,
     onLikeBusiness,
     onDismissBusiness,
+    onShowAttendees, // <<< ADDED: Destructure the new prop
 }) => {
     const [showDetails, setShowDetails] = useState(false);
     const translateX = useSharedValue(0);
@@ -226,19 +228,29 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
 
     // --- Action Handlers (Keep as is) ---
     const handleLikePress = () => {
-        runOnJS(onLikeBusiness)();
+        // No need for runOnJS for direct button press
+        onLikeBusiness();
         translateX.value = withSpring(screenWidth * 1.5, SPRING_CONFIG);
         translateY.value = withSpring(0, SPRING_CONFIG);
     };
 
     const handleDismissPress = () => {
-        runOnJS(onDismissBusiness)();
+        // No need for runOnJS for direct button press
+        onDismissBusiness();
         translateX.value = withSpring(-screenWidth * 1.5, SPRING_CONFIG);
         translateY.value = withSpring(0, SPRING_CONFIG);
     };
 
+    // --- Action Handler for the NEW button ---
+    const handleShowAttendeesPress = () => {
+        // No need for runOnJS for direct button press
+        console.log('Show Attendees Pressed for listing:', listing?.id); // For debugging
+        // Call the function passed via props (this will eventually trigger navigation)
+        onShowAttendees();
+    };
 
-    // --- JSX Structure (MODIFIED) ---
+
+    // --- JSX Structure (MODIFIED: Added Attendees Button) ---
     return (
         <PanGestureHandler onGestureEvent={gestureHandler} failOffsetY={[-5, 5]} activeOffsetX={[-5, 5]}>
             <Animated.View style={[styles.animatedWrapper, animatedCardStyle]}>
@@ -289,15 +301,12 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                             {/* The gradientOverlay View which contained contentOverlay, badgeRow, and detailsToggleSection has been removed */}
 
 
-                            {/* ***** Action Buttons Area (Kept as is) ***** */}
+                            {/* ***** Action Buttons Area (MODIFIED: Added Attendees Button) ***** */}
                             <View style={styles.actionButtonAreaContainer}>
-                               
-                            
-                                    {/* Uncomment below if using expo-blur */}
-                                    {/* <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} /> */}
-                            
+                                {/* Optional Background (Uncomment below if using expo-blur) */}
+                                {/* <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} /> */}
 
-                                {/* Buttons */}
+                                {/* Buttons Row */}
                                 <View style={styles.actionButtonsRow}>
                                     {/* Dislike Button */}
                                     <TouchableOpacity
@@ -314,6 +323,25 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                                             <Ionicons name="close" size={28} color="#FFFFFF" />
                                         </LinearGradient>
                                     </TouchableOpacity>
+
+                                    {/* <<< NEW: Attendees/Who Liked Button >>> */}
+                                    <TouchableOpacity
+                                        style={styles.touchablePill}
+                                        onPress={handleShowAttendeesPress} // Attach the new handler
+                                        activeOpacity={0.8}
+                                    >
+                                        <LinearGradient
+                                            // Using a neutral grey gradient
+                                            colors={['#AAAAAA', '#777777']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 1 }}
+                                            style={styles.buttonPill} // Re-use the same pill style
+                                        >
+                                            {/* Profile / Person Icon */}
+                                            <Ionicons name="person-outline" size={28} color="#FFFFFF" />
+                                        </LinearGradient>
+                                    </TouchableOpacity>
+                                    {/* <<< END NEW BUTTON >>> */}
 
                                     {/* Like Button */}
                                     <TouchableOpacity
@@ -338,19 +366,14 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                     </View> {/* End cardContentContainer */}
 
                     {/* Collapsible Details Section (Keep as is, but triggered differently) */}
-                    {/* Note: The 'toggleDetails' function still exists and controls this, */}
-                    {/* but the button that called it has been removed. Decide how you want */}
-                    {/* to trigger 'toggleDetails' now (e.g., tapping center of image?) */}
                     {showDetails && hasDetailsToShow && (
                         <ScrollView
                             style={styles.detailsContainer}
                             nestedScrollEnabled={true} // Important for scrollable content inside PanGestureHandler
                         >
-                            {/* You might want to add the Category here if it's important detail */}
                             {listing.category ? (
                                 <View style={styles.detailsBlock}>
                                     <Text style={styles.detailsHeading}>Category</Text>
-                                     {/* Simple text display, or style it as needed */}
                                     <Text style={styles.detailsInfoText}>{listing.category}</Text>
                                 </View>
                             ) : null}
@@ -386,7 +409,7 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
     );
 };
 
-// --- Styles (MODIFIED) ---
+// --- Styles (MODIFIED: Adjusted actionButtonsRow width if needed) ---
 const styles = StyleSheet.create({
     loadingContainer: { // Kept as is
         flex: 1,
@@ -481,11 +504,6 @@ const styles = StyleSheet.create({
         textShadowRadius: 4,
     },
 
-    // ***** STYLES REMOVED *****
-    // gradientOverlay, contentOverlay, badgeRow, badge, categoryBadge,
-    // categoryBadgeText, detailsToggleSection, detailsButton, detailsButtonText
-    // have been removed as their corresponding elements are gone.
-
     // --- Details Section Styles --- (Kept as is)
     detailsContainer: {
         maxHeight: screenHeight * 0.25,
@@ -530,7 +548,7 @@ const styles = StyleSheet.create({
         lineHeight: 21,
     },
 
-    // ***** Action Buttons Area Styles ***** (Kept as is)
+    // ***** Action Buttons Area Styles ***** (MODIFIED actionButtonsRow width slightly)
     actionButtonAreaContainer: {
         position: 'absolute',
         bottom: 0,
@@ -541,21 +559,23 @@ const styles = StyleSheet.create({
         paddingTop: 15,
         alignItems: 'center',
     },
-    buttonBackgroundStrip: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        top: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    },
+    // Optional: Uncomment if using BlurView
+    // buttonBackgroundStrip: {
+    //     position: 'absolute',
+    //     bottom: 0,
+    //     left: 0,
+    //     right: 0,
+    //     top: 0,
+    //     backgroundColor: 'rgba(0, 0, 0, 0.3)', // Or use BlurView
+    // },
     actionButtonsRow: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
+        justifyContent: 'space-around', // Distributes the 3 buttons evenly
         alignItems: 'center',
-        width: '105%',
+        width: '100%', // Adjusted from 105% - fit 3 buttons better within bounds
         position: 'relative',
         zIndex: 7,
+        paddingHorizontal: 10, // Add some padding if buttons feel too close to edges
     },
     touchablePill: {
         shadowColor: '#000',
@@ -563,11 +583,13 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 5,
         elevation: 7,
+        // Add some margin if buttons are too close with space-around
+        // marginHorizontal: 5,
     },
     buttonPill: {
-        width: 120,
-        height: 66,
-        borderRadius: 27.5,
+        width: 90, // <<< REDUCED WIDTH slightly to better fit 3 buttons
+        height: 60, // <<< REDUCED HEIGHT slightly
+        borderRadius: 30, // Adjust border radius to keep it pill-shaped
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
