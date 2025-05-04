@@ -1,4 +1,4 @@
-// App.tsx (Corrected RootStack structure)
+// App.tsx (Corrected RootStack structure + AttendeesListScreen integration)
 
 // IMPORTANT: react-native-gesture-handler import must be at the very top
 import 'react-native-get-random-values';
@@ -10,7 +10,6 @@ import {
     NavigatorScreenParams,
     DefaultTheme as NavigationDefaultTheme,
     DarkTheme as NavigationDarkTheme,
-    // useNavigation // Removed as it's no longer used after placeholder removal
 } from '@react-navigation/native';
 import { createNativeStackNavigator, NativeStackNavigationOptions, NativeStackHeaderProps } from '@react-navigation/native-stack';
 import { createBottomTabNavigator, BottomTabHeaderProps } from '@react-navigation/bottom-tabs';
@@ -35,14 +34,18 @@ import ProfileScreen from './src/pages/ProfileScreen';
 import EditProfileScreen from './src/pages/EditProfile';
 import EventsScreen from './src/pages/EventsScreen';
 import ConversationsScreen from './src/pages/ConversationsScreen';
-import ConnectionsScreen from './src/pages/ConnectionsScreen'; // Adjust path if needed
-import ProfileDetailScreen from './src/pages/ProfileDetailScreen'; // Adjust path if needed
-import ChatRoomScreen from './src/pages/ChatRoomScreen'; // <-- Actual screen import
+import ConnectionsScreen from './src/pages/ConnectionsScreen';
+import ProfileDetailScreen from './src/pages/ProfileDetailScreen';
+import ChatRoomScreen from './src/pages/ChatRoomScreen';
+// <<< ADDED >>> Import the new AttendeesListScreen
+import AttendeesListScreen from './src/pages/AttendeesListScreen'; // Adjust path if needed
 
 // --- Import Icons ---
 import { Ionicons } from '@expo/vector-icons';
 
 // --- Type Definitions for Navigation ---
+
+// <<< MODIFIED >>> Added AttendeesList to RootStackParamList
 export type RootStackParamList = {
     Main: NavigatorScreenParams<MainTabParamList>;
     EditProfile: { profileData?: any };
@@ -55,6 +58,10 @@ export type RootStackParamList = {
         recipientId: string;
     };
     ProfileDetail: { userId: string };
+    AttendeesList: { // <<< ADDED >>> Parameters for the new screen
+        businessId: string;
+        businessName?: string; // Optional business name for the header
+    };
 };
 
 type AuthStackParamList = { Login: undefined; SignUp: undefined; };
@@ -78,7 +85,6 @@ const RootStackNav = createNativeStackNavigator<RootStackParamList>();
 function AppHeader({ navigation, route, options }: NativeStackHeaderProps | BottomTabHeaderProps) {
     const { theme } = useTheme();
     const insets = useSafeAreaInsets();
-    // Check if navigation object and canGoBack method exist before calling
     const canGoBack = navigation && typeof navigation.canGoBack === 'function' && navigation.canGoBack();
 
     const headerGradientConfig = theme?.gradients?.primaryHeader;
@@ -113,7 +119,7 @@ function AppHeader({ navigation, route, options }: NativeStackHeaderProps | Bott
                 />
             )}
             <View style={styles.headerContent}>
-                {canGoBack && navigation && typeof navigation.goBack === 'function' && ( // Add check for goBack
+                {canGoBack && navigation && typeof navigation.goBack === 'function' && (
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                         <Ionicons
                             name="chevron-back"
@@ -133,7 +139,6 @@ function AppHeader({ navigation, route, options }: NativeStackHeaderProps | Bott
                     ]}
                     numberOfLines={1}
                 >
-                    {/* Use title from options if available, fallback */}
                     {options?.title ?? route?.name ?? 'Sphere'}
                 </Text>
                  <View style={styles.rightSpacer} />
@@ -160,10 +165,9 @@ function OnboardingStack({ initialRouteName }: { initialRouteName?: keyof Onboar
     const { theme } = useTheme();
     if (!theme) { return <View style={styles.screen}><ActivityIndicator /></View>; }
     const screenOptions: NativeStackNavigationOptions = {
-        // Use AppHeader for consistency, disable default header
         headerShown: true,
         header: (props) => <AppHeader {...props} />,
-        headerBackVisible: false, // Managed by AppHeader
+        headerBackVisible: false,
         gestureEnabled: false,
         contentStyle: { backgroundColor: theme.colors.background },
     };
@@ -198,19 +202,18 @@ function MainTabs() {
         <MainTabNav.Navigator
             sceneContainerStyle={{ backgroundColor: theme.colors.background }}
             screenOptions={({ route }) => ({
-                // Keep using AppHeader at the RootStack level, hide tab headers
                 headerShown: false,
                 tabBarActiveTintColor: theme.colors.primary,
                 tabBarInactiveTintColor: theme.colors.textSecondary,
                 tabBarStyle: {
                     borderTopColor: theme.colors.border,
                     borderTopWidth: 0,
-                    backgroundColor: 'transparent', // Needed for blur/gradient background
-                    position: 'absolute', // Often needed for blur/gradient background
+                    backgroundColor: 'transparent',
+                    position: 'absolute',
                     bottom: 0,
                     left: 0,
                     right: 0,
-                    elevation: 0, // Remove shadow on Android if needed
+                    elevation: 0,
                 },
                 tabBarIcon: ({ focused, color, size }) => {
                     let iconName: keyof typeof Ionicons.glyphMap = 'alert-circle-outline';
@@ -221,7 +224,7 @@ function MainTabs() {
                     else if (route.name === 'ProfileTab') iconName = focused ? 'person' : 'person-outline';
                     return <Ionicons name={iconName} size={size} color={color} />;
                 },
-                tabBarBackground: () => ( // Correct usage for background component
+                tabBarBackground: () => (
                     <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
                         {useGradientTabBar && tabBarGradientConfig ? (
                             <LinearGradient
@@ -229,11 +232,11 @@ function MainTabs() {
                                 style={StyleSheet.absoluteFill}
                             />
                         ) : (
-                            <View style={{ flex: 1, backgroundColor: theme.colors.card }} /> // Fallback solid color
+                            <View style={{ flex: 1, backgroundColor: theme.colors.card }} />
                         )}
                         {applyTabBarBlur && (
                             <BlurView
-                                intensity={90} // Adjust intensity as needed
+                                intensity={90}
                                 tint={blurTint}
                                 style={StyleSheet.absoluteFill}
                             />
@@ -253,6 +256,7 @@ function MainTabs() {
 // --- End MainTabs ---
 
 // --- RootStack ---
+// <<< MODIFIED >>> Added AttendeesListScreen to the RootStackNav.Navigator
 function RootStack() {
      const { theme } = useTheme();
 
@@ -265,61 +269,66 @@ function RootStack() {
     }
 
     return (
-        // *** Corrected Structure: Ensure only Screen components are direct children ***
         <RootStackNav.Navigator
             screenOptions={{
                 header: (props) => <AppHeader {...props} />, // Use custom header globally
             }}
         >
-            {/* Main screen containing tabs - AppHeader might be shown depending on options */}
+            {/* Main screen containing tabs */}
             <RootStackNav.Screen
                 name="Main"
                 component={MainTabs}
-                // Hide the RootStack header for the screen containing the tabs,
-                // as the tabs handle their own content display. Title set in AppHeader via options.
-                options={{ headerShown: false, title: 'Sphere' }} // Set a default title for Main/Tabs
+                options={{ headerShown: false, title: 'Sphere' }}
             />
-            {/* Other screens stacked on top of the tabs */}
+            {/* Other screens stacked on top */}
             <RootStackNav.Screen
                 name="EditProfile"
                 component={EditProfileScreen}
-                options={{ title: 'Edit Profile' }} // Title for AppHeader
+                options={{ title: 'Edit Profile' }}
             />
             <RootStackNav.Screen
                 name="CreateProfile"
                 component={CreateProfile}
-                // This screen likely uses the OnboardingStack header if pushed from there,
-                // or AppHeader if pushed from RootStack. Check navigation flow.
-                // If part of onboarding, it might not be needed here. Added for completeness.
                 options={{ title: 'Create Personal Profile' }}
             />
              <RootStackNav.Screen
                 name="CreateBusinessProfileScreen"
                 component={CreateBusinessProfileScreen}
-                // Similar to CreateProfile, check if it belongs here or only in OnboardingStack
                 options={{ title: 'Create Business Profile' }}
             />
             <RootStackNav.Screen
                 name="ChatRoomScreen"
                 component={ChatRoomScreen}
-                // Title is set dynamically within ChatRoomScreen, AppHeader will pick it up.
-                // You can provide a fallback options={{ title: 'Chat' }} if needed.
+                // Title can be set dynamically in the screen component itself
+                // using navigation.setOptions, or provide a fallback here.
+                // Example: options={({ route }) => ({ title: route.params.recipientName || 'Chat' })}
             />
             <RootStackNav.Screen
                 name="ProfileDetail"
                 component={ProfileDetailScreen}
-                options={{ title: 'Profile Details' }} // Title for AppHeader
+                options={{ title: 'Profile Details' }}
             />
-            {/* Ensure no comments, whitespace, or other elements are direct children here */}
+             {/* <<< ADDED >>> Screen definition for AttendeesList */}
+             <RootStackNav.Screen
+                 name="AttendeesList"
+                 component={AttendeesListScreen}
+                 // You can optionally set the title dynamically based on route params
+                 options={({ route }) => ({
+                     title: route.params?.businessName ? `${route.params.businessName} Attendees` : 'Attendees'
+                 })}
+                 // Alternatively, a static title:
+                 // options={{ title: 'Who Liked This' }}
+             />
+            {/* Ensure no comments, whitespace, etc. here */}
         </RootStackNav.Navigator>
     );
 }
-// --- End RootStack Correction ---
+// --- End RootStack ---
 
 
-// --- AppContent (Logic might need refinement based on profile state) ---
+// --- AppContent (Unchanged) ---
 function AppContent() {
-    const { session, loadingAuth, profile } = useAuth(); // Use profile state if available
+    const { session, loadingAuth, profile } = useAuth();
     const { theme } = useTheme();
 
     if (loadingAuth || !theme) {
@@ -332,17 +341,14 @@ function AppContent() {
     }
 
     if (session && session.user) {
-        // Example onboarding check: Replace 'profile?.setupComplete' with your actual logic
+        // Your existing onboarding logic can remain here
         // const needsOnboarding = !profile || !profile.setupComplete;
         // if (needsOnboarding) {
-        //      // Determine initial onboarding route based on profile status
         //      const initialRoute = profile?.needsBusinessProfile ? 'CreateBusinessProfileScreen' : 'CreateProfile';
         //      return <OnboardingStack initialRouteName={initialRoute} />;
         // }
-        // If logged in and onboarding is complete (or not needed), show main app
         return <RootStack />;
     } else {
-        // No session, show Auth stack
         return <AuthStack />;
     }
 }
@@ -386,7 +392,7 @@ function AppWithTheme() {
 // --- End AppWithTheme ---
 
 
-// --- Styles (Minor adjustment for header title flexibility) ---
+// --- Styles (Unchanged) ---
 const styles = StyleSheet.create({
     screen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' },
     headerContainer: { justifyContent: 'flex-end', /* Align content towards bottom */ },
@@ -394,32 +400,27 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 10,
-       // Removed fixed height, let content + paddingTop determine height
-        backgroundColor: 'transparent', // For BlurView/Gradient
-        position: 'relative', // Ensure content is above BlurView
+        backgroundColor: 'transparent',
+        position: 'relative',
         zIndex: 1,
-        paddingBottom: 8, // Add some padding at the bottom
+        paddingBottom: 8,
     },
     backButton: {
         padding: 5,
-        // Position absolutely or adjust layout to prevent title shift
         position: 'absolute',
         left: 10,
-        bottom: 8, // Align with text padding
-        zIndex: 2, // Ensure button is clickable
+        bottom: 8,
+        zIndex: 2,
     },
     headerTitle: {
         flex: 1,
-        textAlign: 'center', // Center title text
-        // fontWeight: 'bold', // Moved to component style prop
-        // fontSize: 26, // Moved to component style prop
-        // color: // Set via theme in component style prop
-        marginHorizontal: 50, // Give space for back button and spacer
+        textAlign: 'center',
+        marginHorizontal: 50,
     },
     rightSpacer: {
-        width: 55, // Match back button area width (approx icon size + padding * 2)
+        width: 55,
     }
 });
 
 // Export RootStackParamList (Defined at top)
-// export type { RootStackParamList };
+// export type { RootStackParamList }; // Already exported via export statement

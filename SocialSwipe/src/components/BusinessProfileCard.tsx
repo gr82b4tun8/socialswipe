@@ -48,12 +48,13 @@ export interface BusinessListing {
     listing_photos?: string[]; // Array of photo URLs
 }
 
-// --- Business Profile Card Props (MODIFIED: Added onShowAttendees) ---
+// --- Business Profile Card Props (MODIFIED: onShowAttendees now expects arguments) ---
 interface BusinessProfileCardProps {
     listing: BusinessListing | null;
     onLikeBusiness: () => void;
     onDismissBusiness: () => void;
-    onShowAttendees: () => void; // <<< ADDED: Prop for handling attendees button press
+    // <<< MODIFIED: Prop now expects businessId and optional businessName >>>
+    onShowAttendees: (businessId: string, businessName?: string) => void;
 }
 
 // Enable LayoutAnimation for Android (Keep as is)
@@ -75,12 +76,12 @@ const SPRING_CONFIG = {
     restSpeedThreshold: 0.01,
 };
 
-// --- Business Profile Card Component (MODIFIED: Added onShowAttendees prop) ---
+// --- Business Profile Card Component (MODIFIED: Destructure updated prop) ---
 const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
     listing,
     onLikeBusiness,
     onDismissBusiness,
-    onShowAttendees, // <<< ADDED: Destructure the new prop
+    onShowAttendees, // Destructure the updated prop
 }) => {
     const [showDetails, setShowDetails] = useState(false);
     const translateX = useSharedValue(0);
@@ -185,10 +186,8 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
 
     // Modified handlePhotoTap: Now only switches photos or does nothing in center
     // It no longer calls toggleDetails, as the button is gone.
-    // You might want to re-add the toggleDetails call here if you want center taps to expand details.
     const handlePhotoTap = useCallback((event: NativeSyntheticEvent<NativeTouchEvent>) => {
         const tapX = event.nativeEvent.locationX;
-        // Use screenWidth as the basis since card width is '100%' relative to container
         const cardWidth = screenWidth * 0.98; // Approximate width based on potential parent padding
         const tapAreaWidth = cardWidth * TAP_AREA_WIDTH_PERCENTAGE;
 
@@ -197,10 +196,7 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
         } else if (hasMultiplePhotos && tapX > cardWidth - tapAreaWidth) {
             handleNextPhoto();
         }
-        // REMOVED: toggleDetails(); // Toggle details only if tapping center area
-        // Decide if you want tapping the center of the image to still toggle details
-        // If yes, uncomment the line above. If no, leave it commented.
-    }, [hasMultiplePhotos, handlePreviousPhoto, handleNextPhoto, /* toggleDetails */ screenWidth]);
+    }, [hasMultiplePhotos, handlePreviousPhoto, handleNextPhoto, screenWidth]);
 
 
     // --- Null Check (Keep as is) ---
@@ -226,7 +222,7 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
     // Modified: hasDetailsToShow no longer checks category as it won't be displayed *initially*
     const hasDetailsToShow = listing.description || listing.phone_number || fullAddress; // Removed listing.category check here
 
-    // --- Action Handlers (Keep as is) ---
+    // --- Action Handlers (Keep like/dismiss as is) ---
     const handleLikePress = () => {
         // No need for runOnJS for direct button press
         onLikeBusiness();
@@ -241,16 +237,23 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
         translateY.value = withSpring(0, SPRING_CONFIG);
     };
 
-    // --- Action Handler for the NEW button ---
+    // --- Action Handler for the "Attendees" button (MODIFIED) ---
     const handleShowAttendeesPress = () => {
-        // No need for runOnJS for direct button press
-        console.log('Show Attendees Pressed for listing:', listing?.id); // For debugging
-        // Call the function passed via props (this will eventually trigger navigation)
-        onShowAttendees();
+        // Check if listing data is available before calling the prop
+        if (listing) {
+            console.log('Show Attendees Pressed for listing:', listing.id);
+            // Call the prop function passed down from the parent,
+            // providing the necessary data for navigation.
+            onShowAttendees(listing.id, listing.business_name); // <<< MODIFIED: Pass arguments
+        } else {
+            // Handle the case where listing might be null unexpectedly
+            console.warn('Show Attendees pressed but listing data is missing.');
+            // Optionally, you could show an alert or do nothing
+        }
     };
 
 
-    // --- JSX Structure (MODIFIED: Added Attendees Button) ---
+    // --- JSX Structure (No changes needed here, relies on updated handler) ---
     return (
         <PanGestureHandler onGestureEvent={gestureHandler} failOffsetY={[-5, 5]} activeOffsetX={[-5, 5]}>
             <Animated.View style={[styles.animatedWrapper, animatedCardStyle]}>
@@ -327,7 +330,7 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
                                     {/* <<< NEW: Attendees/Who Liked Button >>> */}
                                     <TouchableOpacity
                                         style={styles.touchablePill}
-                                        onPress={handleShowAttendeesPress} // Attach the new handler
+                                        onPress={handleShowAttendeesPress} // <<< This now calls the modified handler
                                         activeOpacity={0.8}
                                     >
                                         <LinearGradient
@@ -409,7 +412,7 @@ const BusinessProfileCard: React.FC<BusinessProfileCardProps> = ({
     );
 };
 
-// --- Styles (MODIFIED: Adjusted actionButtonsRow width if needed) ---
+// --- Styles (Remain unchanged) ---
 const styles = StyleSheet.create({
     loadingContainer: { // Kept as is
         flex: 1,

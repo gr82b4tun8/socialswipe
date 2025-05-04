@@ -3,18 +3,17 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Button, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur'; // Import remains
+import { BlurView } from 'expo-blur';
+import { useNavigation } from '@react-navigation/native'; // <<< --- 1. ADDED Import
 
 // Import Contexts
-import { useDiscovery, BusinessListing } from '../contexts/DiscoveryContext'; // Adjust path if needed
+import { useDiscovery, BusinessListing } from '../contexts/DiscoveryContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext'; // Adjust path if needed
-import { AppTheme } from '../theme/theme'; // Import AppTheme type
+import { useTheme } from '../contexts/ThemeContext';
+import { AppTheme } from '../theme/theme';
 
 // Import BusinessProfileCard
-import BusinessProfileCard, { BusinessListing as BusinessProfileListing } from '../components/BusinessProfileCard'; // Ensure path is correct
-
-// Removed imports and constants are correctly noted as removed previously
+import BusinessProfileCard, { BusinessListing as BusinessProfileListing } from '../components/BusinessProfileCard';
 
 const DiscoverScreen: React.FC = () => {
     // Existing Hooks - Preserved
@@ -28,8 +27,7 @@ const DiscoverScreen: React.FC = () => {
     } = useDiscovery();
     const { theme } = useTheme();
     const styles = getThemedStyles(theme);
-
-    // Removed state and effects are correctly noted as removed previously
+    const navigation = useNavigation(); // <<< --- 2. ADDED Navigation hook instance
 
     // Background Blur configuration - Preserved
     const applyBackgroundBlur = true;
@@ -44,7 +42,7 @@ const DiscoverScreen: React.FC = () => {
         );
     }
 
-    // Handlers - Preserved
+    // Handlers - Preserved Like/Dismiss
     const handleLike = () => {
         if (!currentListing) return;
         console.log(`DiscoverScreen: Like action triggered for Listing ID: ${currentListing.id}`);
@@ -57,8 +55,20 @@ const DiscoverScreen: React.FC = () => {
         dismissListing(currentListing.id);
     };
 
+    // <<< --- 3. ADDED Handler function for showing attendees --- >>>
+    const handleShowAttendees = (businessId: string, businessName?: string) => {
+        console.log(`DiscoverScreen: Show Attendees triggered for ID: ${businessId}`);
+        // Navigate to the AttendeesListScreen, passing necessary parameters
+        // Ensure 'AttendeesListScreen' matches the name in your Navigator
+        navigation.navigate('AttendeesList', {
+            businessId: businessId,
+            businessName: businessName,
+        });
+    };
+    // <<< --- End of added handler --- >>>
 
-    // --- UPDATED JSX Structure with the Key Prop Added ---
+
+    // --- JSX Structure ---
     return (
         <SafeAreaView style={styles.safeArea}>
             {/* Layer 1: Gradient Background - Preserved */}
@@ -82,14 +92,13 @@ const DiscoverScreen: React.FC = () => {
             <View style={styles.contentArea}>
                 {currentListing ? (
                     <View style={styles.cardContainer}>
-                        {/* Removed Liker indicator correctly noted as removed previously */}
-
-                        {/* --- BusinessProfileCard with the key prop ADDED --- */}
+                        {/* --- BusinessProfileCard with the key prop AND onShowAttendees prop ADDED --- */}
                         <BusinessProfileCard
-                            key={currentListing.id} // <--- ***** THIS IS THE ONLY FUNCTIONAL CHANGE *****
-                            listing={currentListing as BusinessProfileListing}
+                            key={currentListing.id} // Retained key prop
+                            listing={currentListing as BusinessProfileListing} // Type assertion kept
                             onLikeBusiness={handleLike}
                             onDismissBusiness={handleDismiss}
+                            onShowAttendees={handleShowAttendees} // <<< --- 4. ADDED Prop passed down
                         />
                     </View>
                 ) : (
