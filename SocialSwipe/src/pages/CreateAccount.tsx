@@ -38,7 +38,6 @@ export default function CreateAccount() {
   const navigation = useNavigation(); // Optional: Use typed hook: useNavigation<CreateAccountScreenNavigationProp>();
 
   const [email, setEmail] = useState('');
-  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -46,7 +45,6 @@ export default function CreateAccount() {
     let isValid = true;
     // --- (Validation logic remains the same) ---
     if (!email) isValid = false;
-    if (!username || username.length < 3) isValid = false;
     if (!password) isValid = false;
 
     if (!isValid) {
@@ -59,11 +57,6 @@ export default function CreateAccount() {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password: password,
-        options: {
-          data: {
-            username: username.trim(),
-          },
-        },
       });
 
       if (error) {
@@ -92,7 +85,6 @@ export default function CreateAccount() {
         }
          // Clear fields after successful signup attempt
          setEmail('');
-         setUsername('');
          setPassword('');
 
          // --- NAVIGATION ADDED HERE ---
@@ -143,19 +135,6 @@ export default function CreateAccount() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
-                placeholderTextColor="#aaa"
-              />
-            </View>
-
-            {/* Username Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Username</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Choose a username (min 3 chars)"
-                value={username}
-                onChangeText={setUsername}
-                autoCapitalize="none"
                 placeholderTextColor="#aaa"
               />
             </View>
